@@ -1,0 +1,46 @@
+# Compiled libraries
+lib/*.so
+lib/*.dylib
+lib/*.dll
+lib/*.a
+
+# Odin build artifacts
+*.o
+*.obj
+*.ll
+*.bc
+
+# Test artifacts
+tests/*.out
+
+# Bun
+node_modules/
+bun.lockb
+
+# Editor directories
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test data
+benchmarks/test_data/*.csv
+tests/test_data/*.csv
+
+# Coverage reports
+coverage/
+*.gcov
+*.gcda
+*.gcno
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/

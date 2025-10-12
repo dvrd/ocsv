@@ -1,0 +1,67 @@
+version: '3'
+
+vars:
+  LIB_NAME: libcisv.so
+  LIB_DIR: lib
+  SRC_DIR: src
+  TEST_DIR: tests
+  BENCH_DIR: benchmarks
+
+tasks:
+  build:
+    desc: Build release library (optimized)
+    cmds:
+      - mkdir -p {{.LIB_DIR}}
+      - odin build {{.SRC_DIR}} -out:{{.LIB_DIR}}/{{.LIB_NAME}} -build-mode:shared -o:speed
+
+  build-dev:
+    desc: Build debug library (with debug symbols)
+    cmds:
+      - mkdir -p {{.LIB_DIR}}
+      - odin build {{.SRC_DIR}} -out:{{.LIB_DIR}}/{{.LIB_NAME}} -build-mode:shared -debug
+
+  test:
+    desc: Run all tests
+    cmds:
+      - odin test {{.TEST_DIR}} -all-packages
+    deps: [build-dev]
+
+  test-leaks:
+    desc: Run tests with memory leak detection
+    cmds:
+      - odin test {{.TEST_DIR}} -all-packages -define:USE_TRACKING_ALLOCATOR=true
+    deps: [build-dev]
+
+  bench:
+    desc: Run performance benchmark
+    cmds:
+      - bun run {{.BENCH_DIR}}/benchmark.js
+    deps: [build]
+
+  check:
+    desc: Check code without building
+    cmds:
+      - odin check {{.SRC_DIR}} -all-packages
+
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -rf {{.LIB_DIR}}/*.so {{.LIB_DIR}}/*.dylib {{.LIB_DIR}}/*.dll
+
+  fmt:
+    desc: Format Odin source code
+    cmds:
+      - odin fmt {{.SRC_DIR}}
+      - odin fmt {{.TEST_DIR}}
+
+  all:
+    desc: Build, test, and benchmark
+    cmds:
+      - task: build
+      - task: test
+      - task: bench
+
+  help:
+    desc: Show available tasks
+    cmds:
+      - task --list
