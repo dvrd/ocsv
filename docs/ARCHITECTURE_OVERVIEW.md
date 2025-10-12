@@ -1,7 +1,7 @@
-# CISV Architecture Overview
+# OCSV Architecture Overview
 
 **Document Date:** 2025-10-12
-**Project Version:** v0.0.7
+**Project Version:** v0.3.0
 **Purpose:** Comprehensive technical architecture documentation
 
 ---
@@ -9,17 +9,14 @@
 ## Table of Contents
 
 1. [System Architecture](#system-architecture)
-2. [Layer Breakdown](#layer-breakdown)
+2. [Design Philosophy](#design-philosophy)
 3. [Core Components](#core-components)
-4. [SIMD Optimization Layer](#simd-optimization-layer)
-5. [Memory Management](#memory-management)
-6. [Data Flow](#data-flow)
-7. [API Surface](#api-surface)
-8. [Build System](#build-system)
-9. [Extension Points](#extension-points)
-10. [Design Patterns](#design-patterns)
-11. [Performance Characteristics](#performance-characteristics)
-12. [Platform Support Matrix](#platform-support-matrix)
+4. [Memory Management](#memory-management)
+5. [State Machine Design](#state-machine-design)
+6. [FFI Layer](#ffi-layer)
+7. [Performance Characteristics](#performance-characteristics)
+8. [Extension Points](#extension-points)
+9. [Future Architecture](#future-architecture)
 
 ---
 
@@ -31,47 +28,48 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                     Application Layer                        │
 │  ┌──────────────────┐  ┌──────────────────┐  ┌────────────┐ │
-│  │  Node.js App     │  │  CLI Tool        │  │  C App     │ │
+│  │  Bun/JS App      │  │  Odin CLI Tool   │  │  Odin App  │ │
 │  └────────┬─────────┘  └────────┬─────────┘  └─────┬──────┘ │
 └───────────┼────────────────────┼─────────────────────┼───────┘
             │                    │                     │
-┌───────────┼────────────────────┼─────────────────────┼───────┐
-│           ▼                    ▼                     │       │
-│  ┌─────────────────┐  ┌──────────────┐              │       │
-│  │  N-API Bindings │  │  CLI Parser  │              │       │
-│  │  (cisv_addon.cc)│  │  (main.c)    │              │       │
-│  └────────┬────────┘  └──────┬───────┘              │       │
-│           │                   │                      │       │
-│  Language Bridge Layer        │                      │       │
-└───────────┼───────────────────┼──────────────────────┼───────┘
-            │                   │                      │
-┌───────────┼───────────────────┼──────────────────────┼───────┐
-│           ▼                   ▼                      ▼       │
+┌───────────┼────────────────────┘                     │
+│           ▼                                          │
+│  ┌─────────────────┐                                 │
+│  │  Bun FFI Layer  │                                 │
+│  │  (dlopen)       │                                 │
+│  └────────┬────────┘                                 │
+│           │                                          │
+│  FFI Bridge Layer                                    │
+└───────────┼──────────────────────────────────────────┼───────┘
+            │                                          │
+┌───────────┼──────────────────────────────────────────┼───────┐
+│           ▼                                          ▼       │
 │  ┌────────────────────────────────────────────────────────┐ │
-│  │                 Core C Library                        │ │
+│  │                 OCSV Core Library                     │ │
 │  ├────────────────────────────────────────────────────────┤ │
-│  │  cisv_parser.c     │  cisv_transformer.c              │ │
-│  │  - Parsing logic   │  - Field transforms              │ │
-│  │  - SIMD dispatch   │  - Built-in transforms           │ │
-│  │  - Streaming API   │  - Custom transforms             │ │
+│  │  parser.odin       │  ffi_bindings.odin              │ │
+│  │  - Parsing logic   │  - FFI exports                   │ │
+│  │  - State machine   │  - Type conversions              │ │
+│  │  - UTF-8 handling  │  - Memory safety                 │ │
 │  │                    │                                   │ │
-│  │  cisv_writer.c     │  cisv_simd.h                     │ │
-│  │  - CSV writing     │  - SIMD detection                │ │
-│  │  - Format options  │  - Platform-specific intrinsics  │ │
+│  │  config.odin       │  cisv.odin                       │ │
+│  │  - Configuration   │  - Public API                    │ │
+│  │  - Defaults        │  - Re-exports                    │ │
 │  └────────────────────────────────────────────────────────┘ │
 │                                                              │
-│  Core Layer (Performance Critical)                          │
+│  Core Layer (Odin)                                          │
 └──────────────────────────────────────────────────────────────┘
             │
 ┌───────────┼──────────────────────────────────────────────────┐
 │           ▼                                                   │
 │  ┌──────────────────────────────────────────────────────┐    │
-│  │  Operating System & Hardware Layer                   │    │
+│  │  Odin Runtime & Standard Library                     │    │
 │  ├──────────────────────────────────────────────────────┤    │
-│  │  • Memory Mapping (mmap / CreateFileMapping)         │    │
-│  │  • File I/O (POSIX / Windows APIs)                   │    │
-│  │  • SIMD Instructions (AVX-512 / AVX2 / SSE2 / NEON)  │    │
-│  │  • CPU Cache Hierarchy                               │    │
+│  │  • Memory Allocators (context.allocator)             │    │
+│  │  • Dynamic Arrays ([dynamic]T)                       │    │
+│  │  • String Utilities (core:strings)                   │    │
+│  │  • UTF-8 Handling (core:unicode/utf8)                │    │
+│  │  • OS Abstractions (core:os)                         │    │
 │  └──────────────────────────────────────────────────────┘    │
 │                                                               │
 │  Platform Layer                                               │
@@ -80,1005 +78,601 @@
 
 ### Design Principles
 
-1. **Performance First**: Every design decision prioritizes speed
-2. **Zero-Copy When Possible**: Memory mapping for file access
-3. **SIMD Everywhere**: Vectorized operations for hot paths
-4. **Cache-Friendly**: Data structures sized for cache lines
-5. **Platform Abstraction**: Clean separation for portability
+1. **Simplicity First**: Clean, readable code over clever tricks
+2. **Memory Safety**: Explicit allocations with `defer` cleanup
+3. **RFC 4180 Compliance**: Full standard compliance with edge case handling
+4. **Zero-Copy When Possible**: Minimize memory allocations
+5. **UTF-8 Native**: First-class Unicode support
+6. **Performance**: Fast parsing without compromising correctness
 
 ---
 
-## Layer Breakdown
+## Design Philosophy
 
-### 1. Core C Library (`cisv/`)
+### Why Odin?
 
-**Purpose:** High-performance CSV processing core
-**Language:** C11
-**Dependencies:** None (stdlib only)
+**Odin** is a modern systems programming language that provides:
+- **Simplicity**: Clear, readable syntax
+- **Safety**: Bounds checking, explicit memory management
+- **Speed**: Compiles to native code with LLVM
+- **Built-in Testing**: `odin test` command for testing
+- **Fast Compilation**: Seconds, not minutes
+- **No Hidden Allocations**: Every allocation is explicit
 
-**Files:**
-- `cisv_parser.c` (40KB) - Main parsing logic
-- `cisv_parser.h` - Parser API and configuration
-- `cisv_transformer.c` (18KB) - Data transformation pipeline
-- `cisv_transformer.h` - Transform API
-- `cisv_writer.c` (16KB) - CSV writing with SIMD
-- `cisv_writer.h` - Writer API
-- `cisv_simd.h` - SIMD detection and macros
+### Why Bun FFI?
 
-**Responsibilities:**
-- CSV parsing with RFC 4180 support (partial)
-- SIMD-accelerated delimiter/quote detection
-- Memory-mapped file reading
-- Streaming API implementation
-- Built-in transformations (uppercase, hash, base64, etc.)
-- CSV writing with optimization
+**Bun FFI** provides:
+- **Direct function calls**: No wrapper layer needed
+- **Simple API**: `dlopen()` and function signatures
+- **Fast**: Native performance with minimal overhead
+- **Type-safe**: FFI types match Odin exports
+- **No build complexity**: No node-gyp, no Python dependencies
 
-### 2. N-API Bridge (`cisv_addon.cc`)
+### Why This Combination?
 
-**Purpose:** Node.js integration layer
-**Language:** C++17
-**Dependencies:** node-addon-api, N-API
-
-**Responsibilities:**
-- Expose C API to JavaScript
-- Convert JavaScript types to C types
-- Handle async operations
-- Manage memory between JS and C
-- Error propagation to JavaScript
-- Callback marshalling
-
-**Key Classes:**
-```cpp
-class CisvParser : public Napi::ObjectWrap<CisvParser> {
-  // Node.js wrapper for cisv_parser
-  private:
-    cisv_parser* parser_;
-    std::vector<std::vector<std::string>> rows_;
-    Napi::FunctionReference jsTransform_;
-};
-```
-
-### 3. JavaScript API Layer
-
-**Files:**
-- `index.js` - CommonJS entry point
-- `index.mjs` - ESM entry point
-- `index.ts` - TypeScript entry point
-- `index.d.ts` - TypeScript type definitions
-
-**Responsibilities:**
-- High-level API for JavaScript users
-- Configuration normalization
-- Promise/callback abstraction
-- Method chaining support
-
-### 4. CLI Tool
-
-**Entry Point:** `main.c` (compiled with `-DCISV_CLI`)
-**Binary:** `cisv_bin`
-
-**Responsibilities:**
-- Command-line argument parsing
-- File operations
-- Output formatting (JSON, CSV, TSV)
-- Benchmarking mode
-- Column selection
-- Row counting
+The Odin + Bun combination offers:
+- ✅ **10x simpler build**: One command vs complex build systems
+- ✅ **Memory safety**: `defer` guarantees cleanup
+- ✅ **Fast iteration**: 2-second builds
+- ✅ **Native performance**: 66.67 MB/s throughput
+- ✅ **Modern ecosystem**: Bun + TypeScript support
 
 ---
 
 ## Core Components
 
-### 1. Parser (cisv_parser.c)
+### 1. Parser (`parser.odin`)
 
-#### Configuration Structure
+The parser implements a 5-state machine for RFC 4180 compliance.
 
-```c
-typedef struct cisv_config {
-    // Delimiters & Quotes
-    char delimiter;              // Field delimiter (default: ',')
-    char quote;                  // Quote character (default: '"')
-    char escape;                 // Escape char (0 = RFC4180 "")
-    char comment;                // Comment line prefix (0 = none)
+**Key Structures:**
 
-    // Behavior
-    bool skip_empty_lines;       // Skip empty lines
-    bool trim;                   // Trim whitespace
-    bool relaxed;                // Relaxed parsing mode
-    bool skip_lines_with_error;  // Continue on error
-
-    // Limits
-    size_t max_row_size;         // Max row size (0 = unlimited)
-    int from_line;               // Start line (1-based)
-    int to_line;                 // End line (0 = EOF)
-
-    // Callbacks
-    cisv_field_cb field_cb;      // Per-field callback
-    cisv_row_cb row_cb;          // Per-row callback
-    cisv_error_cb error_cb;      // Error callback
-    void *user;                  // User data
-} cisv_config;
-```
-
-#### Parsing Modes
-
-**1. File Parsing** (Memory-Mapped)
-```c
-int cisv_parser_parse_file(cisv_parser *parser, const char *path);
-```
-- Uses `mmap()` on Linux/macOS
-- Zero-copy when possible
-- SIMD-accelerated scanning
-- Callbacks for each field/row
-
-**2. Streaming API**
-```c
-int cisv_parser_write(cisv_parser *parser, const uint8_t *chunk, size_t len);
-void cisv_parser_end(cisv_parser *parser);
-```
-- Chunk-based processing
-- 1MB ring buffer
-- Handles partial rows across chunks
-
-**3. Row Counting** (Fast Path)
-```c
-size_t cisv_parser_count_rows(const char *path);
-```
-- Optimized for speed
-- No callback overhead
-- SIMD newline detection
-
-#### Parser State Machine
-
-```
-┌──────────┐   delimiter    ┌──────────┐
-│  FIELD   │ ──────────────>│ NEW_FIELD│
-│          │<────────────────│          │
-└──────────┘      data       └──────────┘
-     │                            │
-     │ quote                      │ newline
-     │                            │
-     ▼                            ▼
-┌──────────┐   quote+"     ┌──────────┐
-│ IN_QUOTE │ ──────────────>│ NEW_ROW  │
-│          │<────────────────│          │
-└──────────┘    callback    └──────────┘
-```
-
-### 2. SIMD Dispatcher
-
-#### Feature Detection Hierarchy
-
-```c
-// Compile-time detection
-#ifdef __AVX512F__
-    #define cisv_HAVE_AVX512
-    #define cisv_VEC_BYTES 64
-    typedef __m512i cisv_vec;
-#elif defined(__AVX2__)
-    #define cisv_HAVE_AVX2
-    #define cisv_VEC_BYTES 32
-    typedef __m256i cisv_vec;
-#elif defined(__SSE2__)
-    #define cisv_HAVE_SSE2
-    #define cisv_VEC_BYTES 16
-    typedef __m128i cisv_vec;
-#elif defined(__ARM_NEON)
-    #define HAS_NEON
-    // ARM-specific handling
-#endif
-```
-
-#### SIMD Operations
-
-**1. Delimiter Detection**
-```c
-// Find delimiter positions in 64-byte chunk (AVX-512)
-__m512i chunk = _mm512_loadu_si512(data);
-__m512i delim = _mm512_set1_epi8(',');
-uint64_t mask = _mm512_cmpeq_epi8_mask(chunk, delim);
-// Process 64 characters in parallel
-```
-
-**2. Quote Detection**
-```c
-// Find quote characters
-__m512i quotes = _mm512_set1_epi8('"');
-uint64_t quote_mask = _mm512_cmpeq_epi8_mask(chunk, quotes);
-```
-
-**3. Newline Detection**
-```c
-// Find \n or \r\n
-__m512i lf = _mm512_set1_epi8('\n');
-__m512i cr = _mm512_set1_epi8('\r');
-uint64_t newline_mask = _mm512_cmpeq_epi8_mask(chunk, lf) |
-                        _mm512_cmpeq_epi8_mask(chunk, cr);
-```
-
-### 3. Transformer (cisv_transformer.c)
-
-#### Built-in Transforms (C Implementation)
-
-```c
-typedef enum {
-    TRANSFORM_UPPERCASE,
-    TRANSFORM_LOWERCASE,
-    TRANSFORM_TRIM,
-    TRANSFORM_TO_INT,
-    TRANSFORM_TO_FLOAT,
-    TRANSFORM_HASH_SHA256,
-    TRANSFORM_BASE64_ENCODE,
-} cisv_transform_type;
-```
-
-**Performance Characteristics:**
-- **C transforms**: Near-zero overhead
-- **JS transforms**: ~10-50x slower (V8 boundary crossing)
-- **SIMD potential**: uppercase/lowercase can use SIMD
-
-#### Transform Pipeline
-
-```
-Input Row: ["John", "  25  ", "NYC"]
-           │
-           ├─> Field 0: uppercase    -> "JOHN"
-           ├─> Field 1: trim + to_int -> 25
-           └─> Field 2: (no transform) -> "NYC"
-           │
-Output Row: ["JOHN", 25, "NYC"]
-```
-
-#### Custom JavaScript Transforms
-
-```javascript
-parser.transform(0, (value) => value.toUpperCase());
-parser.transform(1, (value) => parseInt(value.trim()));
-parser.transform(-1, (value) => value.replace(/[^\w\s]/g, ''));
-```
-
-### 4. Writer (cisv_writer.c)
-
-#### Writer Configuration
-
-```c
-typedef struct {
-    char delimiter;
-    char quote;
-    bool quote_all;          // Quote every field
-    bool use_crlf;           // Windows line endings
-    const char *null_value;  // Representation for NULL
-} cisv_writer_config;
-```
-
-#### Writing Modes
-
-**1. Direct Write**
-```c
-void cisv_writer_write_row(cisv_writer *w, const char **fields, size_t n);
-```
-
-**2. Buffered Write**
-- Internal 64KB buffer
-- SIMD-optimized quoting check
-- Batch writes to reduce syscalls
-
----
-
-## SIMD Optimization Layer
-
-### Detection Strategy
-
-**Compile-Time Detection:**
-```bash
-gcc -march=native  # Detects CPU features at compile time
-```
-
-**Runtime Detection** (Future):
-```c
-bool has_avx512 = __builtin_cpu_supports("avx512f");
-bool has_avx2 = __builtin_cpu_supports("avx2");
-// Function pointer dispatch
-```
-
-### Optimization Hot Paths
-
-**1. Find Delimiter (95% of parse time)**
-```c
-// Scalar version (baseline)
-for (size_t i = 0; i < len; i++) {
-    if (data[i] == delimiter) {
-        // Handle field
-    }
+```odin
+Parser :: struct {
+    config:       Config,                 // Parser configuration
+    state:        Parse_State,            // Current state
+    field_buffer: [dynamic]u8,            // Buffer for current field
+    current_row:  [dynamic]string,        // Current row being built
+    all_rows:     [dynamic][]string,      // All parsed rows
+    line_number:  int,                    // Current line (1-indexed)
 }
 
-// SIMD version (AVX-512)
-while (len >= 64) {
-    __m512i chunk = _mm512_loadu_si512(data);
-    __m512i delim = _mm512_set1_epi8(delimiter);
-    uint64_t mask = _mm512_cmpeq_epi8_mask(chunk, delim);
-
-    if (mask) {
-        // Process delimiters (64 chars checked in parallel)
-        int pos = __builtin_ctzll(mask);
-        // Handle field at data[pos]
-    }
-
-    data += 64;
-    len -= 64;
+Parse_State :: enum {
+    Field_Start,        // Beginning of a field
+    In_Field,           // Inside unquoted field
+    In_Quoted_Field,    // Inside quoted field
+    Quote_In_Quote,     // Found quote (might be "" or end)
+    Field_End,          // Field complete
 }
 ```
 
-**Performance Impact:**
-- **Scalar**: ~1 char/cycle
-- **SIMD (AVX-512)**: ~64 chars/cycle
-- **Speedup**: ~40-50x (accounting for overhead)
+**Key Functions:**
 
-**2. Quote Handling**
-
-Similar SIMD strategy for finding quote boundaries in O(n/64) time.
-
-**3. Memory Copying**
-
-```c
-// Use SIMD for field copying (future optimization)
-_mm512_storeu_si512(dest, _mm512_loadu_si512(src));
+```odin
+parser_create :: proc() -> ^Parser
+parser_destroy :: proc(parser: ^Parser)
+parse_csv :: proc(parser: ^Parser, data: string) -> bool
+clear_parser_data :: proc(parser: ^Parser)
 ```
 
-### Cache Optimization
+### 2. Configuration (`config.odin`)
 
-**Ring Buffer Design:**
-```
-┌─────────────────────────────────┐
-│   1MB Ring Buffer (L3 cache)    │
-│                                  │
-│  ┌──────────┐  ┌──────────┐     │
-│  │ Chunk 1  │  │ Chunk 2  │  ...│
-│  └──────────┘  └──────────┘     │
-└─────────────────────────────────┘
+Configuration options for parser behavior.
+
+```odin
+Config :: struct {
+    delimiter:               byte,    // Field delimiter (default: ',')
+    quote:                   byte,    // Quote character (default: '"')
+    escape:                  byte,    // Escape character (default: '"')
+    skip_empty_lines:        bool,    // Skip empty lines
+    comment:                 byte,    // Comment character (default: '#')
+    trim:                    bool,    // Trim whitespace
+    relaxed:                 bool,    // Relaxed parsing mode
+    max_row_size:            int,     // Maximum row size
+    from_line:               int,     // Start line
+    to_line:                 int,     // End line
+    skip_lines_with_error:   bool,    // Skip error lines
+}
+
+default_config :: proc() -> Config
 ```
 
-- Size chosen for L3 cache (typically 8-32MB)
-- Reduces cache misses
-- Enables prefetching
+### 3. FFI Bindings (`ffi_bindings.odin`)
+
+Exports for Bun FFI integration.
+
+```odin
+// Export with C ABI
+@(export, link_name="cisv_parser_create")
+cisv_parser_create :: proc "c" () -> ^Parser {
+    context = runtime.default_context()
+    // ...
+}
+
+@(export, link_name="cisv_parse_string")
+cisv_parse_string :: proc "c" (parser: ^Parser, data: [^]byte, len: i32) -> i32 {
+    context = runtime.default_context()
+    // ...
+}
+
+@(export, link_name="cisv_parser_destroy")
+cisv_parser_destroy :: proc "c" (parser: ^Parser) {
+    context = runtime.default_context()
+    // ...
+}
+```
+
+**Critical FFI Pattern:**
+```odin
+context = runtime.default_context()
+```
+This line is **required** in all FFI functions to ensure proper memory management.
+
+### 4. Main Module (`cisv.odin`)
+
+Package entry point that re-exports all public APIs.
+
+```odin
+package cisv
+
+// Version information
+VERSION_MAJOR :: 0
+VERSION_MINOR :: 3
+VERSION_PATCH :: 0
+
+// Re-export public APIs
+// (imports from parser, config, ffi_bindings)
+```
 
 ---
 
 ## Memory Management
 
-### Memory Mapping Strategy
+### Odin's Memory Model
 
-**Linux/macOS:**
-```c
-int fd = open(path, O_RDONLY);
-struct stat st;
-fstat(fd, &st);
-void *data = mmap(NULL, st.st_size, PROT_READ,
-                  MAP_PRIVATE | MAP_POPULATE, fd, 0);
+**Explicit Allocations:**
+```odin
+buffer := make([dynamic]u8)        // Allocate dynamic array
+defer delete(buffer)                // Guaranteed cleanup
 
-#ifdef __linux__
-    posix_fadvise(fd, 0, st.st_size, POSIX_FADV_SEQUENTIAL);
-#endif
+str := strings.clone(input)         // Clone string
+defer delete(str)                   // Cleanup
 ```
 
-**Advantages:**
-- Zero-copy from kernel to userspace
-- OS handles paging
-- Prefetching hints (`MAP_POPULATE`, `POSIX_FADV_SEQUENTIAL`)
-
-**Fallbacks:**
-```c
-// For streams or pipes
-char buffer[1024*1024];  // 1MB buffer
-size_t n = read(fd, buffer, sizeof(buffer));
+**Context Allocators:**
+```odin
+// Use temporary allocator for short-lived allocations
+context.temp_allocator = // ... set temp allocator
+data := make([dynamic]u8)  // Uses temp allocator
+// Auto-freed when temp allocator is reset
 ```
 
-### Node.js Memory Management
+### Parser Memory Management
 
-**V8 Heap:**
-- JavaScript strings are UTF-16
-- Conversion overhead from UTF-8 (CSV) to UTF-16 (JS)
-
-**Native Heap:**
-- Parser state: ~1KB per parser instance
-- Row buffer: ~1MB for large rows
-- Memory-mapped file: Shared with OS
-
-**Memory Profile** (parsing 100MB CSV):
-```
-V8 Heap:    ~200MB (parsed rows as JS arrays)
-Native:     ~102MB (mmap + parser state)
-Total:      ~302MB
-Peak RSS:   ~350MB (with overhead)
+**1. Parser Creation:**
+```odin
+parser := parser_create()
+// Allocates:
+// - Parser struct
+// - field_buffer (dynamic array)
+// - current_row (dynamic array)
+// - all_rows (dynamic array)
 ```
 
-**Optimization Opportunities:**
-- Streaming to avoid accumulation
-- External strings (V8 feature)
-- Shared buffers
+**2. Parsing:**
+```odin
+parse_csv(parser, csv_data)
+// Allocates:
+// - Field strings (cloned for safety)
+// - Row arrays
+// All stored in parser.all_rows
+```
+
+**3. Parser Destruction:**
+```odin
+parser_destroy(parser)
+// Frees (in order):
+// 1. All field strings in all rows
+// 2. All row arrays
+// 3. field_buffer
+// 4. current_row
+// 5. all_rows
+// 6. Parser struct itself
+```
+
+**4. Parser Reuse:**
+```odin
+clear_parser_data(parser)
+// Frees:
+// 1. All field strings
+// 2. All row arrays
+// Clears but doesn't free the dynamic arrays themselves
+```
+
+### Memory Safety Guarantees
+
+✅ **No memory leaks**: Comprehensive cleanup in `parser_destroy`
+✅ **No use-after-free**: String cloning for FFI boundary
+✅ **No double-free**: Clear ownership rules
+✅ **Bounds checking**: Enabled in debug builds
 
 ---
 
-## Data Flow
+## State Machine Design
 
-### Parse File Flow
-
-```
-User Code
-   │
-   ├─> parser.parseSync("data.csv")
-   │
-   ▼
-JavaScript Wrapper (index.js)
-   │
-   ├─> Normalize config
-   │
-   ▼
-N-API Bridge (cisv_addon.cc)
-   │
-   ├─> Convert JS config → cisv_config
-   ├─> Create cisv_parser
-   │
-   ▼
-Core Parser (cisv_parser.c)
-   │
-   ├─> mmap(data.csv)
-   ├─> SIMD scan for delimiters
-   ├─> Callbacks for each field
-   │     │
-   │     ▼
-   │   N-API Bridge
-   │     │
-   │     ├─> Accumulate into std::vector
-   │     └─> Apply transforms
-   │
-   ├─> munmap()
-   │
-   ▼
-Return to JavaScript
-   │
-   └─> Array of arrays [[...], [...]]
-```
-
-### Transform Flow
+### State Transitions
 
 ```
-Input: "  HELLO  "
-   │
-   ▼
-Check transform registry
-   │
-   ├─> C transform? → Apply immediately (fast)
-   │                  └─> Result: "HELLO"
-   │
-   └─> JS transform? → Call JavaScript function
-                       │
-                       ├─> Cross V8 boundary (slow)
-                       ├─> Execute JS code
-                       └─> Return result
+Start
+  │
+  ├─ quote (")    → In_Quoted_Field
+  ├─ delimiter    → emit empty field, stay Field_Start
+  ├─ newline      → emit empty row
+  ├─ comment (#)  → Field_End (skip line)
+  └─ other        → In_Field
+
+In_Field
+  │
+  ├─ delimiter    → emit field, Field_Start
+  ├─ newline      → emit field + row, Field_Start
+  └─ other        → append to buffer, stay In_Field
+
+In_Quoted_Field
+  │
+  ├─ quote (")    → Quote_In_Quote
+  └─ other        → append to buffer (including newlines!)
+
+Quote_In_Quote
+  │
+  ├─ quote (")    → append literal ", In_Quoted_Field
+  ├─ delimiter    → emit field, Field_Start
+  ├─ newline      → emit field + row, Field_Start
+  └─ other        → ERROR (or relaxed mode)
 ```
 
-**Performance Comparison:**
-- C transform: ~10ns per field
-- JS transform: ~500ns per field (50x slower)
+### Edge Case Handling
 
-### Streaming Flow
-
+**Nested Quotes:**
+```csv
+"field with ""quotes""" → field with "quotes"
 ```
-Input Stream (chunks)
-   │
-   ├─> chunk 1 (1MB)
-   │     │
-   │     ├─> parser.write(chunk1)
-   │     │     │
-   │     │     ├─> Append to ring buffer
-   │     │     ├─> Scan for complete rows
-   │     │     └─> Emit row callbacks
-   │     │
-   ├─> chunk 2 (1MB)
-   │     │
-   │     └─> ... (repeat)
-   │
-   └─> End of stream
-         │
-         └─> parser.end()
-               │
-               ├─> Flush remaining data
-               └─> Final row callback
+
+**Multiline Fields:**
+```csv
+"line 1
+line 2
+line 3"
+```
+
+**Delimiters in Quotes:**
+```csv
+"field, with, commas" → single field
+```
+
+**Empty Fields:**
+```csv
+a,,c → ["a", "", "c"]
+```
+
+**Trailing Delimiters:**
+```csv
+a,b, → ["a", "b", ""]
 ```
 
 ---
 
-## API Surface
+## FFI Layer
 
-### C API
+### JavaScript Side (Bun)
 
-**Configuration:**
-```c
-void cisv_config_init(cisv_config *cfg);
+```javascript
+import { dlopen, FFIType, suffix } from "bun:ffi";
+
+const lib = dlopen(`./libcsv.${suffix}`, {
+  cisv_parser_create: {
+    returns: FFIType.ptr,
+  },
+  cisv_parse_string: {
+    args: [FFIType.ptr, FFIType.ptr, FFIType.i32],
+    returns: FFIType.i32,
+  },
+  cisv_get_row_count: {
+    args: [FFIType.ptr],
+    returns: FFIType.i32,
+  },
+  cisv_parser_destroy: {
+    args: [FFIType.ptr],
+    returns: FFIType.void,
+  },
+});
+
+// Usage
+const parser = lib.symbols.cisv_parser_create();
+const data = new TextEncoder().encode("a,b,c\n1,2,3");
+const result = lib.symbols.cisv_parse_string(parser, data, data.length);
+const rowCount = lib.symbols.cisv_get_row_count(parser);
+lib.symbols.cisv_parser_destroy(parser);
 ```
 
-**Parser Lifecycle:**
-```c
-cisv_parser *cisv_parser_create_with_config(const cisv_config *cfg);
-int cisv_parser_parse_file(cisv_parser *p, const char *path);
-void cisv_parser_destroy(cisv_parser *p);
+### Odin Side
+
+```odin
+@(export, link_name="cisv_parser_create")
+cisv_parser_create :: proc "c" () -> ^Parser {
+    context = runtime.default_context()  // CRITICAL!
+
+    parser := new(Parser)
+    parser.config = default_config()
+    parser.field_buffer = make([dynamic]u8)
+    parser.current_row = make([dynamic]string)
+    parser.all_rows = make([dynamic][]string)
+    parser.state = .Field_Start
+    parser.line_number = 1
+
+    return parser
+}
 ```
 
-**Streaming:**
-```c
-int cisv_parser_write(cisv_parser *p, const uint8_t *data, size_t len);
-void cisv_parser_end(cisv_parser *p);
+### Type Conversions
+
+**Odin → JavaScript:**
+- `^Parser` → `FFIType.ptr`
+- `i32` → `FFIType.i32`
+- `cstring` → `FFIType.cstring`
+- `bool` → `FFIType.bool`
+
+**JavaScript → Odin:**
+- `Buffer` → `[^]byte`
+- `number` → `i32`
+- `string` → `cstring` (via `new TextEncoder()`)
+
+---
+
+## Performance Characteristics
+
+### Throughput
+
+**Measured Performance:**
+- **Pure parsing**: 66.67 MB/s (30k rows, 180KB data)
+- **Row throughput**: 217,876 rows/second (100k row test)
+- **Large files**: 3-4 MB/s (10-50MB with data generation)
+
+### Time Complexity
+
+**Parsing:**
+- Best case: O(n) - single pass through data
+- Average case: O(n) - character-by-character processing
+- Worst case: O(n) - even with complex quotes/multiline
+
+**Memory:**
+- Space: O(rows × avg_fields × avg_field_size)
+- Overhead: ~5x input size (string cloning + structure overhead)
+
+### Performance Factors
+
+**Fast:**
+- ✅ Single-pass parsing
+- ✅ Minimal branching in hot path
+- ✅ Direct byte operations
+- ✅ Native code (LLVM-optimized)
+
+**Slower:**
+- ⚠️ String cloning for FFI safety (~10% overhead)
+- ⚠️ UTF-8 encoding/decoding (~5% overhead)
+- ⚠️ Dynamic array resizing (amortized O(1))
+
+### Memory Usage
+
+| Input Size | Estimated Memory | Ratio |
+|------------|------------------|-------|
+| 1 MB | ~5 MB | 5:1 |
+| 10 MB | ~50 MB | 5:1 |
+| 50 MB | ~250 MB | 5:1 |
+
+Memory overhead comes from:
+- String cloning (safety requirement)
+- Row/field structure overhead
+- Dynamic array capacity (power-of-2 growth)
+
+---
+
+## Extension Points
+
+### 1. Custom Delimiters
+
+```odin
+parser := parser_create()
+parser.config.delimiter = '\t'  // TSV
+parser.config.delimiter = ';'   // European CSV
+parser.config.delimiter = '|'   // Pipe-separated
 ```
 
-**Utilities:**
-```c
-size_t cisv_parser_count_rows(const char *path);
-int cisv_parser_get_line_number(const cisv_parser *p);
+### 2. Custom Quote Characters
+
+```odin
+parser.config.quote = '\''  // Single quotes instead of double
 ```
 
-### JavaScript API
+### 3. Comment Lines
 
-**Class: cisvParser**
-
-**Constructor:**
-```typescript
-new cisvParser(config?: CisvConfig)
+```odin
+parser.config.comment = '#'  // Skip lines starting with #
+parser.config.comment = 0    // Disable comments
 ```
 
-**Parsing Methods:**
-```typescript
-parseSync(path: string): ParsedRow[]
-parse(path: string): Promise<ParsedRow[]>
-parseString(csv: string): ParsedRow[]
+### 4. Relaxed Mode
+
+```odin
+parser.config.relaxed = true  // Allow RFC 4180 violations
 ```
 
-**Streaming Methods:**
-```typescript
-write(chunk: Buffer | string): void
-end(): void
-getRows(): ParsedRow[]
-clear(): void
+### 5. Future: Transformations
+
+```odin
+// Planned for Phase 2-3
+parser.add_transform(0, Transform.Uppercase)
+parser.add_transform(1, Transform.To_Int)
+parser.add_custom_transform(2, custom_transform_proc)
 ```
 
-**Configuration:**
-```typescript
-setConfig(config: CisvConfig): void
-getConfig(): CisvConfig
+### 6. Future: Streaming API
+
+```odin
+// Planned for Phase 2-3
+parser.stream_mode = true
+parser.on_row_callback = my_row_handler
+parse_csv_stream(parser, io.Reader)
 ```
 
-**Transforms:**
-```typescript
-transform(field: number | string,
-          transform: TransformType | FieldTransformFn,
-          context?: TransformContext): this
-transformRow(transform: RowTransformFn): this
-removeTransform(field: number | string): this
-clearTransforms(): this
+---
+
+## Future Architecture
+
+### Phase 1: Platform Expansion (Planned)
+
+**Windows Support:**
+- Cross-platform file I/O
+- Windows-specific optimizations
+- MSVC compatibility
+
+**ARM64 Support:**
+- NEON SIMD optimizations (expected 20-30% boost)
+- Apple Silicon optimizations
+- Raspberry Pi support
+
+### Phase 2: Advanced Features (Planned)
+
+**Streaming API:**
+```odin
+Parser_Stream :: struct {
+    parser: ^Parser,
+    on_row: proc(row: []string),
+    buffer_size: int,
+}
 ```
 
-**Statistics:**
-```typescript
-getStats(): ParseStats
-getTransformInfo(): TransformInfo
+**Schema Validation:**
+```odin
+Schema :: struct {
+    fields: []Field_Schema,
+}
+
+Field_Schema :: struct {
+    name: string,
+    type: Field_Type,
+    required: bool,
+    constraints: []Constraint,
+}
 ```
 
-**Static Methods:**
-```typescript
-static countRows(path: string): number
-static countRowsWithConfig(path: string, config?: CisvConfig): number
+### Phase 3: Performance (Planned)
+
+**SIMD Optimizations:**
+- Delimiter detection with NEON (ARM) / AVX2 (x86)
+- Quote scanning
+- Newline detection
+- Expected: 20-30% performance improvement
+
+**Multi-threading:**
+- Chunk-based parallel parsing
+- Lock-free data structures
+- Work-stealing scheduler
+- Expected: 2-4x speedup on multi-core systems
+
+### Phase 4: Ecosystem (Planned)
+
+**Plugin Architecture:**
+```odin
+Plugin :: struct {
+    name: string,
+    version: string,
+    init: proc(parser: ^Parser),
+    transform: proc(field: string) -> string,
+}
 ```
 
-### CLI API
+**Writer API:**
+```odin
+Writer :: struct {
+    config: Writer_Config,
+    output: io.Writer,
+}
 
-```bash
-cisv_bin [OPTIONS] [FILE]
-
-Options:
-  -d, --delimiter CHAR    Field delimiter
-  -q, --quote CHAR        Quote character
-  -t, --trim              Trim whitespace
-  -c, --count             Count rows only
-  -s, --select COLS       Select columns (0,2,5)
-  --head N                First N rows
-  --tail N                Last N rows
-  -b, --benchmark         Benchmark mode
+write_csv :: proc(writer: ^Writer, rows: [][]string) -> bool
 ```
 
 ---
 
 ## Build System
 
-### Makefile (CLI Build)
+### Compilation
 
-**Targets:**
-- `make cli` - Build standalone CLI tool
-- `make tests` - Build C test suite
-- `make test-c` - Run C tests
-- `make benchmark-cli` - CLI benchmarks
-- `make clean` - Remove build artifacts
-
-**Compilation Flags:**
-```makefile
-CFLAGS = -O3 -march=native -mavx2 -mtune=native \
-         -pipe -fomit-frame-pointer \
-         -Wall -Wextra -std=c11 \
-         -flto -ffast-math -funroll-loops
-```
-
-**Flag Explanation:**
-- `-O3`: Maximum optimization
-- `-march=native`: CPU-specific optimizations
-- `-mavx2`: Enable AVX2 instructions
-- `-flto`: Link-time optimization
-- `-ffast-math`: Aggressive math optimizations
-- `-funroll-loops`: Loop unrolling
-
-### node-gyp (Node.js Addon Build)
-
-**binding.gyp:**
-```python
-{
-  'targets': [{
-    'target_name': 'cisv',
-    'sources': [
-      'cisv/cisv_parser.c',
-      'cisv/cisv_transformer.c',
-      'cisv/cisv_writer.c',
-      'cisv/cisv_addon.cc'
-    ],
-    'cflags': ['-O3', '-march=native', '-mavx2'],
-    'cflags_cc': ['-O3', '-march=native', '-mavx2'],
-    'include_dirs': ["<!@(node -p \"require('node-addon-api').include\")"],
-    'dependencies': ["<!(node -p \"require('node-addon-api').gyp\")"],
-  }]
-}
-```
-
-**Build Commands:**
+**Release Build:**
 ```bash
-npm install          # Runs node-gyp rebuild
-node-gyp configure   # Generate Makefiles
-node-gyp build       # Compile addon
-node-gyp clean       # Remove build/
+odin build src -build-mode:shared -out:lib/libcsv.dylib -o:speed
 ```
 
----
-
-## Extension Points
-
-### 1. Custom Transforms (JavaScript)
-
-```javascript
-parser.transform(0, (value) => {
-    // Custom transformation logic
-    return value.toUpperCase();
-});
-```
-
-### 2. Custom Transforms (Native C)
-
-```c
-// Future: Plugin API for native transforms
-typedef void (*transform_fn)(char *data, size_t len, void *ctx);
-
-void register_transform(const char *name, transform_fn fn) {
-    // Register custom C transform
-}
-```
-
-### 3. Row Transforms
-
-```javascript
-parser.transformRow((row, rowObj) => {
-    // Filter rows
-    if (rowObj.age < 18) return null;
-
-    // Modify rows
-    row.push(Date.now());
-    return row;
-});
-```
-
-### 4. Error Handlers
-
-```c
-void error_callback(void *user, int line, const char *msg) {
-    fprintf(stderr, "Error on line %d: %s\n", line, msg);
-    // Custom error handling
-}
-```
-
-### 5. Custom Output Formats (CLI)
-
-**Future:**
+**Debug Build:**
 ```bash
-cisv_bin --format json data.csv
-cisv_bin --format parquet data.csv
-cisv_bin --format avro data.csv
+odin build src -build-mode:shared -out:lib/libcsv.dylib -debug
 ```
 
----
+**Compilation Time:** ~2 seconds
 
-## Design Patterns
+### Testing
 
-### 1. Strategy Pattern (Parsing Modes)
-
-```c
-// Different parsing strategies
-typedef int (*parse_strategy)(cisv_parser *p, const char *data, size_t len);
-
-// File parsing strategy (mmap)
-int parse_file_strategy(cisv_parser *p, const char *path) { ... }
-
-// Streaming strategy (chunked)
-int parse_stream_strategy(cisv_parser *p, const char *data, size_t len) { ... }
+**Run All Tests:**
+```bash
+odin test tests -all-packages
 ```
 
-### 2. Callback Pattern (Events)
-
-```c
-// Observer pattern via callbacks
-typedef void (*cisv_field_cb)(void *user, const char *data, size_t len);
-typedef void (*cisv_row_cb)(void *user);
-
-// Client registers callbacks
-parser->config.field_cb = my_field_handler;
-parser->config.row_cb = my_row_handler;
+**Run Specific Test:**
+```bash
+odin test tests -define:ODIN_TEST_NAMES=tests.test_basic_csv
 ```
 
-### 3. Builder Pattern (Configuration)
-
-```javascript
-const parser = new cisvParser()
-    .setConfig({ delimiter: ';', trim: true })
-    .transform(0, 'uppercase')
-    .transform(1, 'to_int')
-    .transformRow((row) => row.filter(Boolean));
+**With Memory Tracking:**
+```bash
+odin test tests -all-packages -debug
 ```
 
-### 4. Template Method (Transform Pipeline)
-
-```c
-// Template for transform processing
-void process_field(char *field, transform_list *transforms) {
-    for (transform *t = transforms->head; t != NULL; t = t->next) {
-        if (t->type == TRANSFORM_C) {
-            // Native transform (fast path)
-            t->c_fn(field, t->context);
-        } else {
-            // JavaScript transform (slow path)
-            field = t->js_fn(field);
-        }
-    }
-}
-```
-
-### 5. Adapter Pattern (Node.js Bridge)
-
-```cpp
-// Adapt C API to N-API
-Napi::Value CisvParser::ParseSync(const Napi::CallbackInfo& info) {
-    // Convert JS arguments to C types
-    std::string path = info[0].As<Napi::String>();
-
-    // Call C function
-    int result = cisv_parser_parse_file(parser_, path.c_str());
-
-    // Convert C results to JS types
-    Napi::Array rows = Napi::Array::New(env, rows_.size());
-    // ...
-    return rows;
-}
-```
-
----
-
-## Performance Characteristics
-
-### Time Complexity
-
-**Parsing:**
-- Best case: O(n/64) with SIMD (all delimiters aligned)
-- Average case: O(n/32) with SIMD (mixed)
-- Worst case: O(n) scalar fallback
-
-**Transformations:**
-- C transforms: O(1) per field
-- JS transforms: O(1) per field + overhead (~500ns)
-
-**Memory:**
-- File parsing: O(1) with mmap (streaming)
-- Accumulated rows: O(rows × fields) in memory
-
-### Space Complexity
-
-**Parser State:**
-- Parser struct: ~1KB
-- Ring buffer: 1MB (configurable)
-- Memory-mapped file: O(file_size) virtual, O(working_set) physical
-
-**Output:**
-- Parsed rows: O(rows × avg_field_size)
-- Node.js: 2x overhead (UTF-16 conversion)
-
-### Benchmark Methodology
-
-**Test Setup:**
-- CPU: Intel Core i7-9700K @ 3.6GHz (8 cores)
-- RAM: 32GB DDR4-3200
-- SSD: NVMe PCIe 3.0
-- OS: Ubuntu 22.04 LTS
-- Compiler: GCC 11.3.0
-
-**Test Data:**
-- 1M rows × 10 columns
-- File size: ~150MB
-- Mix of quoted/unquoted fields
-
-**Results:**
-```
-cisv (sync):        71 MB/s   (2.1s total)
-cisv (async):       98 MB/s   (1.5s total)
-d3-dsv:             98 MB/s   (1.5s total)
-papaparse:          28 MB/s   (5.4s total)
-csv-parse:          18 MB/s   (8.3s total)
-```
-
-### Bottlenecks
+### Optimization Flags
 
 **Current:**
-1. **UTF-8 → UTF-16 conversion** (Node.js): ~30% overhead
-2. **JavaScript transform overhead**: 50x slower than C
-3. **Memory allocation** for rows: ~20% of parse time
+- `-o:speed`: Maximum optimization
+- `-build-mode:shared`: Shared library
+- `-march:native`: (planned) CPU-specific optimizations
 
-**Optimization Opportunities:**
-1. External strings (V8 feature) - avoid UTF-16 conversion
-2. SIMD for transformations (uppercase/lowercase)
-3. Thread pool for parallel parsing
-4. Zero-copy strings with Buffers
-
----
-
-## Platform Support Matrix
-
-| Platform | Status | SIMD | Memory Mapping | Notes |
-|----------|--------|------|----------------|-------|
-| **Linux (x86_64)** | ✅ Supported | AVX-512/AVX2/SSE2 | mmap | Optimal |
-| **macOS (x86_64)** | ✅ Supported | AVX2/SSE2 | mmap | Full support |
-| **macOS (ARM64)** | ⚠️ Partial | Scalar only | mmap | No NEON yet |
-| **Windows (x86_64)** | ❌ Not Supported | - | - | Planned (PRP-04) |
-| **Linux (ARM64)** | ⚠️ Partial | Scalar only | mmap | No NEON yet (PRP-05) |
-| **FreeBSD** | 🔶 Untested | AVX2/SSE2 | mmap | Should work |
-
-### Platform-Specific Code
-
-**Linux:**
-```c
-#ifdef __linux__
-    #include <sys/mman.h>
-    posix_fadvise(fd, 0, size, POSIX_FADV_SEQUENTIAL);
-    mmap(NULL, size, PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0);
-#endif
-```
-
-**macOS:**
-```c
-#ifdef __APPLE__
-    #include <sys/mman.h>
-    #ifdef F_RDADVISE
-        fcntl(fd, F_RDADVISE, &advice);
-    #endif
-    mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
-#endif
-```
-
-**Windows (Planned):**
-```c
-#ifdef _WIN32
-    HANDLE hFile = CreateFile(path, GENERIC_READ, ...);
-    HANDLE hMap = CreateFileMapping(hFile, NULL, PAGE_READONLY, ...);
-    void *data = MapViewOfFile(hMap, FILE_MAP_READ, ...);
-#endif
-```
-
-**ARM NEON (Planned):**
-```c
-#ifdef __ARM_NEON
-    #include <arm_neon.h>
-    uint8x16_t chunk = vld1q_u8(data);
-    uint8x16_t delim = vdupq_n_u8(',');
-    uint8x16_t mask = vceqq_u8(chunk, delim);
-#endif
-```
-
----
-
-## Future Architecture Enhancements
-
-### 1. Multi-threaded Parsing (PRP-10)
-
-```
-File: data.csv (1GB)
-   │
-   ├─> Split into N chunks (thread-safe boundaries)
-   │
-   ├─> Thread 1: Parse chunk 1 (0-256MB)
-   ├─> Thread 2: Parse chunk 2 (256-512MB)
-   ├─> Thread 3: Parse chunk 3 (512-768MB)
-   └─> Thread 4: Parse chunk 4 (768-1024MB)
-        │
-        └─> Merge results
-```
-
-**Challenges:**
-- Finding row boundaries across chunks
-- Quoted fields spanning chunks
-- Memory ordering
-
-### 2. Plugin Architecture (PRP-11)
-
-```
-┌──────────────────────────────────┐
-│     Plugin Manager                │
-├──────────────────────────────────┤
-│  • Plugin discovery               │
-│  • Version compatibility         │
-│  • Dependency resolution         │
-└──────────────────────────────────┘
-          │
-          ├─> Transform Plugins
-          │     • Custom formats
-          │     • Data validation
-          │
-          ├─> Output Plugins
-          │     • Parquet writer
-          │     • Avro writer
-          │
-          └─> Input Plugins
-                • Excel reader
-                • JSON→CSV
-```
-
-### 3. Schema Validation (PRP-08)
-
-```
-Schema: {
-    fields: [
-        { name: "id", type: "int", required: true },
-        { name: "email", type: "string", pattern: /^.+@.+$/ },
-        { name: "age", type: "int", range: [0, 150] }
-    ]
-}
-   │
-   ├─> Validate row 1: ✅ Pass
-   ├─> Validate row 2: ❌ Fail (invalid email)
-   └─> Report errors
-```
+**Future:**
+- `-no-bounds-check`: Remove bounds checking in release
+- `-microarch:specific`: Target specific CPU microarchitecture
+- `-lto`: Link-time optimization
 
 ---
 
 ## Conclusion
 
-CISV's architecture is designed for extreme performance through:
+OCSV's architecture is built around three core principles:
 
-1. **SIMD vectorization** - Process 64 bytes in parallel
-2. **Memory mapping** - Zero-copy file access
-3. **Cache optimization** - 1MB ring buffer aligned to cache
-4. **Minimal abstraction** - Direct C implementation for hot paths
-5. **Platform-specific tuning** - Leverage OS and CPU features
+1. **Simplicity**: Clean Odin code, simple state machine, direct FFI
+2. **Safety**: Explicit memory management, bounds checking, UTF-8 native
+3. **Performance**: Native code, minimal overhead, single-pass parsing
 
-**Key Trade-offs:**
-- ✅ Performance over portability (currently)
-- ✅ Speed over safety (limited error handling)
-- ✅ Simplicity over flexibility (minimal dependencies)
+The combination of Odin's modern language features and Bun's simple FFI creates a CSV parser that is:
+- ✅ Fast (66.67 MB/s)
+- ✅ Correct (RFC 4180 compliant)
+- ✅ Safe (zero memory leaks)
+- ✅ Simple (2-second builds, one command)
+- ✅ Maintainable (clean, readable code)
 
-**Roadmap:**
-- Phase 0-2: Production readiness + cross-platform
-- Phase 3-4: Advanced features + ecosystem
+**Future Roadmap:**
+- Phase 1: Cross-platform support (Windows, ARM64)
+- Phase 2: Advanced features (streaming, schema validation)
+- Phase 3: Performance optimizations (SIMD, multi-threading)
+- Phase 4: Ecosystem (plugins, writers, tools)
 
 ---
 
 **Document Version:** 1.0
 **Last Updated:** 2025-10-12
-**Author:** Claude Code (Architecture Analysis)
+**Author:** Dan Castrillo

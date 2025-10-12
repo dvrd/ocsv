@@ -66,7 +66,7 @@ This action plan transforms OCSV from concept to a production-ready, cross-platf
 - ✅ Better debugging
 - ✅ Modern language features
 
-**See:** `docs/ODIN_MIGRATION_GUIDE.md` for complete analysis
+**See:** `docs/ARCHITECTURE_OVERVIEW.md` for technical details
 
 ---
 

@@ -14,31 +14,32 @@ A high-performance, RFC 4180 compliant CSV parser written in Odin with Bun FFI s
 - ✅ PRP-00: Foundation (basic parsing, FFI bindings)
 - ✅ PRP-01: RFC 4180 Edge Cases (full compliance)
 - ✅ PRP-02: Enhanced Testing (58 tests, 95% coverage)
-- 🚧 PRP-03: Documentation (in progress)
+- ✅ PRP-03: Documentation (complete)
 
-**Production-ready for Phase 0 use cases.** See [docs/](docs/) for detailed results.
+**Production-ready for Phase 0 use cases.** All documentation complete. See [docs/](docs/) for detailed results.
 
 ## Features
 
-- ⚡ **High Performance** - 66.67 MB/s throughput, 217k+ rows/sec
+- ⚡ **High Performance** - 66.67 MB/s throughput (80+ MB/s with SIMD), 217k+ rows/sec
+- 🚀 **SIMD Optimized** - 21% faster on ARM64 with NEON instructions
 - 🦺 **Memory Safe** - Zero memory leaks, comprehensive tracking
 - ✅ **RFC 4180 Compliant** - Full CSV specification support
 - 🌍 **UTF-8 Support** - Correct handling of international characters
 - 🔧 **Flexible Configuration** - Custom delimiters, quotes, comments
 - 📊 **Large Files** - Successfully tested with 50MB+ datasets
-- 🧪 **Well Tested** - 58 tests with 95% code coverage
+- 🧪 **Well Tested** - 70 tests with 95% code coverage
 - 📦 **Bun Native** - Direct FFI integration with Bun runtime
 
 ## Why Odin + Bun?
 
-**vs. C + Node.js (N-API):**
+**Key Advantages:**
 - ✅ 20-30% faster development (achieved: 112x faster than estimated 2 weeks)
 - ✅ 10x simpler build system (no node-gyp, no Python)
 - ✅ Better memory safety (explicit memory management + defer)
 - ✅ Better error handling (enums + multiple returns)
 - ✅ No C++ wrapper needed (Bun FFI is direct)
 
-See [ODIN_MIGRATION_GUIDE.md](docs/ODIN_MIGRATION_GUIDE.md) for detailed analysis.
+See [ARCHITECTURE_OVERVIEW.md](docs/ARCHITECTURE_OVERVIEW.md) for technical details.
 
 ## Quick Start
 
@@ -223,6 +224,7 @@ odin test tests -all-packages -debug
 - **Large File Tests** (6 tests) - 10MB, 50MB, 100k rows, 1000 columns
 - **Performance Regression** (4 tests) - Baseline monitoring
 - **Integration Tests** (13 tests) - End-to-end workflows
+- **SIMD Tests** (12 tests) - SIMD optimization verification
 
 ## Documentation
 
@@ -238,14 +240,17 @@ odin test tests -all-packages -debug
 - **[PRP-00 Results](docs/PRP-00-RESULTS.md)** - Foundation implementation
 - **[PRP-01 Results](docs/PRP-01-RESULTS.md)** - RFC 4180 compliance
 - **[PRP-02 Results](docs/PRP-02-RESULTS.md)** - Enhanced testing
+- **[PRP-05 Results](docs/PRP-05-RESULTS.md)** - SIMD optimizations
 
 ## Project Structure
 
 ```
 ocsv/
 ├── src/
-│   ├── csv.odin          # Main module
+│   ├── cisv.odin         # Main module
 │   ├── parser.odin       # RFC 4180 state machine parser
+│   ├── parser_simd.odin  # SIMD-optimized parser (PRP-05)
+│   ├── simd.odin         # SIMD search functions (PRP-05)
 │   ├── config.odin       # Configuration types
 │   └── ffi_bindings.odin # Bun FFI exports
 ├── tests/
@@ -254,7 +259,8 @@ ocsv/
 │   ├── test_fuzzing.odin       # Property-based testing (5 tests)
 │   ├── test_large_files.odin   # Large dataset tests (6 tests)
 │   ├── test_performance.odin   # Performance regression (4 tests)
-│   └── test_integration.odin   # End-to-end workflows (13 tests)
+│   ├── test_integration.odin   # End-to-end workflows (13 tests)
+│   └── test_simd.odin          # SIMD tests (12 tests, PRP-05)
 ├── docs/
 │   ├── API.md                  # API reference (PRP-03)
 │   ├── COOKBOOK.md             # Usage patterns (PRP-03)
@@ -263,10 +269,10 @@ ocsv/
 │   ├── INTEGRATION.md          # FFI examples (PRP-03)
 │   ├── CONTRIBUTING.md         # Development guide (PRP-03)
 │   ├── ACTION_PLAN.md          # 20-week roadmap
-│   ├── ODIN_MIGRATION_GUIDE.md # Why Odin/Bun
 │   ├── PRP-00-RESULTS.md       # Foundation results
 │   ├── PRP-01-RESULTS.md       # RFC 4180 results
-│   └── PRP-02-RESULTS.md       # Testing results
+│   ├── PRP-02-RESULTS.md       # Testing results
+│   └── PRP-05-RESULTS.md       # SIMD optimization results
 └── README.md                   # This file
 ```
 
@@ -276,11 +282,11 @@ ocsv/
 - ✅ PRP-00: Foundation (basic parsing, FFI bindings)
 - ✅ PRP-01: RFC 4180 Edge Cases (full compliance)
 - ✅ PRP-02: Enhanced Testing (58 tests, 95% coverage)
-- 🚧 PRP-03: Documentation (API, cookbook, guides)
+- ✅ PRP-03: Documentation (API, cookbook, guides)
 
-**Phase 1 (Planned): Platform Expansion**
+**Phase 1 (In Progress): Platform Expansion**
 - ⏳ PRP-04: Windows/Linux Support (cross-platform builds, CI/CD)
-- ⏳ PRP-05: ARM64/NEON SIMD (target: 20-30% performance boost)
+- ✅ PRP-05: ARM64/NEON SIMD (achieved: 21% performance boost)
 
 **Phase 2-4 (Planned): Advanced Features**
 - ⏳ PRP-06: Streaming API (parse without loading full file)
@@ -357,6 +363,6 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 **Built with ❤️ using Odin + Bun**
 
-**Version:** 0.3.0 (Phase 0 Complete)
+**Version:** 0.4.0 (Phase 1: SIMD Optimizations)
 
 **Last Updated:** 2025-10-12

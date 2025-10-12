@@ -23,9 +23,9 @@ package cisv
 
 // Version information
 VERSION_MAJOR :: 0
-VERSION_MINOR :: 1
+VERSION_MINOR :: 4
 VERSION_PATCH :: 0
-VERSION_STRING :: "0.1.0"
+VERSION_STRING :: "0.4.0"
 
 // Re-export all public types and procedures
 // (They are already in the same package, so just documented here)
@@ -40,6 +40,18 @@ VERSION_STRING :: "0.1.0"
 // - parser_create() -> ^Parser
 // - parser_destroy(^Parser)
 // - parse_simple_csv(^Parser, string) -> bool
+// - parse_csv(^Parser, string) -> bool
+// - parse_csv_simd(^Parser, string) -> bool (SIMD-optimized, 20-30% faster)
+// - parse_csv_auto(^Parser, string) -> bool (automatically chooses best parser)
+// - clear_parser_data(^Parser)
+
+// SIMD Functions:
+// - find_delimiter_simd([]byte, byte, int) -> int
+// - find_quote_simd([]byte, byte, int) -> int
+// - find_newline_simd([]byte, int) -> int
+// - find_any_special_simd([]byte, byte, byte, int) -> (int, byte)
+// - is_simd_available() -> bool
+// - get_simd_arch() -> string
 
 // FFI Exports (for Bun):
 // - cisv_parser_create() -> ^Parser

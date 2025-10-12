@@ -703,5 +703,7 @@ Memory overhead comes from:
 
 ---
 
+**Document Version:** 1.0
 **Last Updated:** 2025-10-12
+**Author:** Dan Castrillo
 **Version:** 0.3.0 (Phase 0 Complete)
