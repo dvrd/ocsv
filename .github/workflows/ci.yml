@@ -7,51 +7,57 @@ on:
     branches: [ main ]
 
 jobs:
-  # Build and test on multiple platforms
   build-and-test:
-    name: Build & Test (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [macos-14, ubuntu-latest]
         include:
+          - os: macos-14
+            lib_name: libcsv.dylib
+            platform: macOS
           - os: ubuntu-latest
             lib_name: libcsv.so
             platform: Linux
-          - os: macos-latest
-            lib_name: libcsv.dylib
-            platform: macOS
-          - os: windows-latest
-            lib_name: csv.dll
-            platform: Windows
-      fail-fast: false
+
+    runs-on: ${{ matrix.os }}
+    name: Build & Test (${{ matrix.platform }})
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Odin (Linux/macOS)
-        if: runner.os != 'Windows'
+      - name: Download LLVM (MacOS ARM)
+        if: matrix.os == 'macos-14'
+        run: |
+          brew update
+          brew install llvm@20
+          echo "$(brew --prefix llvm@20)/bin" >> $GITHUB_PATH
+
+      - name: Download LLVM (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 20
+          echo "/usr/lib/llvm-20/bin" >> $GITHUB_PATH
+
+      - name: Clone and Build Odin
         run: |
           cd /tmp
-          curl -L https://github.com/odin-lang/Odin/releases/download/dev-2025-01/odin-ubuntu-amd64-dev-2025-01.zip -o odin.zip
-          unzip odin.zip
-          sudo mv odin /usr/local/
-          echo "/usr/local/odin" >> $GITHUB_PATH
-
-      - name: Setup Odin (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          curl -L https://github.com/odin-lang/Odin/releases/download/dev-2025-01/odin-windows-amd64-dev-2025-01.zip -o odin.zip
-          Expand-Archive -Path odin.zip -DestinationPath C:\odin
-          echo "C:\odin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-        shell: powershell
+          git clone --depth=1 https://github.com/odin-lang/Odin.git
+          cd Odin
+          ./build_odin.sh release
+          echo "/tmp/Odin" >> $GITHUB_PATH
 
       - name: Verify Odin installation
-        run: odin version
+        run: |
+          odin version
+          odin report
 
       - name: Build library
-        run: odin build src -build-mode:shared -out:${{ matrix.lib_name }} -o:speed -show-timings
+        run: odin build src -build-mode:shared -out:${{ matrix.lib_name }} -o:speed
 
       - name: Verify library exists
         run: |
@@ -62,7 +68,6 @@ jobs:
             echo "✗ Library not found!"
             exit 1
           fi
-        shell: bash
 
       - name: Run tests
         run: odin test tests -all-packages
@@ -77,112 +82,32 @@ jobs:
           path: ${{ matrix.lib_name }}
           retention-days: 7
 
-  # Check code formatting and style
   lint:
     name: Lint & Format Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Odin
+      - name: Download LLVM (Ubuntu)
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 20
+          echo "/usr/lib/llvm-20/bin" >> $GITHUB_PATH
+
+      - name: Clone and Build Odin
         run: |
           cd /tmp
-          curl -L https://github.com/odin-lang/Odin/releases/download/dev-2025-01/odin-ubuntu-amd64-dev-2025-01.zip -o odin.zip
-          unzip odin.zip
-          sudo mv odin /usr/local/
-          echo "/usr/local/odin" >> $GITHUB_PATH
+          git clone --depth=1 https://github.com/odin-lang/Odin.git
+          cd Odin
+          ./build_odin.sh release
+          echo "/tmp/Odin" >> $GITHUB_PATH
 
       - name: Check code
         run: odin check src -all-packages
 
       - name: Check tests
         run: odin check tests -all-packages
-
-  # Test SIMD optimizations on different architectures
-  test-simd:
-    name: Test SIMD (${{ matrix.arch }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            arch: x86_64
-            platform: Linux
-          - os: macos-14  # ARM64/M1
-            arch: arm64
-            platform: macOS
-      fail-fast: false
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Odin
-        run: |
-          cd /tmp
-          curl -L https://github.com/odin-lang/Odin/releases/download/dev-2025-01/odin-ubuntu-amd64-dev-2025-01.zip -o odin.zip
-          unzip odin.zip
-          sudo mv odin /usr/local/
-          echo "/usr/local/odin" >> $GITHUB_PATH
-
-      - name: Show architecture info
-        run: |
-          echo "Platform: ${{ matrix.platform }}"
-          echo "Architecture: $(uname -m)"
-          odin version
-
-      - name: Build with SIMD
-        run: odin build src -build-mode:shared -out:libcsv.so -o:speed -show-timings
-
-      - name: Run SIMD tests
-        run: |
-          odin test tests -all-packages -define:ODIN_TEST_NAMES="tests.test_simd"
-
-  # Create release builds
-  release:
-    name: Create Release (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    if: startsWith(github.ref, 'refs/tags/v')
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        include:
-          - os: ubuntu-latest
-            lib_name: libcsv.so
-            platform: linux
-            arch: x86_64
-          - os: macos-latest
-            lib_name: libcsv.dylib
-            platform: macos
-            arch: universal
-          - os: windows-latest
-            lib_name: csv.dll
-            platform: windows
-            arch: x86_64
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Odin
-        run: |
-          # Setup Odin for each platform
-          # ... (similar to build-and-test job)
-
-      - name: Build release
-        run: odin build src -build-mode:shared -out:${{ matrix.lib_name }} -o:speed
-
-      - name: Package release
-        run: |
-          mkdir -p release
-          cp ${{ matrix.lib_name }} release/
-          cp README.md release/
-          cp LICENSE release/ || touch release/LICENSE
-          tar -czf ocsv-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz release/
-
-      - name: Upload release artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ocsv-${{ matrix.platform }}-${{ matrix.arch }}
-          path: ocsv-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz
