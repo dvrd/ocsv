@@ -1,4 +1,4 @@
-package cisv
+package ocsv
 
 // Error handling and recovery for CSV parsing
 // Provides clear error messages with line/column information

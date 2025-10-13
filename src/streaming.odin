@@ -1,8 +1,9 @@
-package cisv
+package ocsv
 
 import "core:os"
 import "core:io"
 import "core:fmt"
+import "core:strings"
 
 // Row_Callback is called for each successfully parsed row
 // Return false to stop parsing, true to continue
@@ -146,15 +147,16 @@ streaming_parser_process_chunk :: proc(
 	// Combine leftover from previous chunk with new chunk
 	data: []byte
 	combined_buffer: [dynamic]u8
-	has_leftover := len(parser.leftover) > 0
+	offset_adjustment := 0  // How many bytes came from leftover
 
-	if has_leftover {
+	if len(parser.leftover) > 0 {
 		// Combine leftover + new chunk into temporary buffer
+		// IMPORTANT: Don't use defer delete on this - the field_buffer might reference it
 		combined_buffer = make([dynamic]u8, len(parser.leftover) + len(chunk))
-		defer delete(combined_buffer)
 		copy(combined_buffer[:len(parser.leftover)], parser.leftover[:])
 		copy(combined_buffer[len(parser.leftover):], chunk)
 		data = combined_buffer[:]
+		offset_adjustment = len(parser.leftover)
 		clear(&parser.leftover)  // Clear leftover since we're processing it now
 	} else {
 		data = chunk
@@ -162,7 +164,7 @@ streaming_parser_process_chunk :: proc(
 
 	// Process data character by character
 	config := &parser.config.parser_config
-	start_offset := 0  // Track where we started processing in this data buffer
+	last_complete_pos := 0  // Last position where we completed a row
 
 	for i := 0; i < len(data); i += 1 {
 		ch := rune(data[i])
@@ -186,7 +188,7 @@ streaming_parser_process_chunk :: proc(
 				// Save for next chunk
 				clear(&parser.leftover)
 				append(&parser.leftover, ..data[i:])
-				parser.bytes_processed += i
+				// Note: Don't update bytes_processed here - we'll update it at the end
 				return true
 			}
 
@@ -221,11 +223,21 @@ streaming_parser_process_chunk :: proc(
 			} else if ch_is_ascii && ch_byte == config.delimiter {
 				streaming_emit_empty_field(parser)
 			} else if ch == '\n' {
-				if len(parser.current_row) > 0 || i > 0 {
+				// Empty line or end of row
+				if len(parser.current_row) > 0 {
+					// We have fields - emit trailing empty field if we're at Field_Start
+					// (means we just saw a delimiter before the newline: ",\n")
+					streaming_emit_empty_field(parser)
 					if !streaming_emit_row(parser) {
 						return false
 					}
-					start_offset = i + 1
+					last_complete_pos = i + 1
+				} else if i > 0 {
+					// Empty line (but not first character)
+					if !streaming_emit_row(parser) {
+						return false
+					}
+					last_complete_pos = i + 1
 				}
 			} else if ch == '\r' {
 				continue
@@ -245,7 +257,7 @@ streaming_parser_process_chunk :: proc(
 				if !streaming_emit_row(parser) {
 					return false
 				}
-				start_offset = i + 1
+				last_complete_pos = i + 1
 				parser.state = .Field_Start
 			} else if ch == '\r' {
 				continue
@@ -272,7 +284,7 @@ streaming_parser_process_chunk :: proc(
 				if !streaming_emit_row(parser) {
 					return false
 				}
-				start_offset = i + 1
+				last_complete_pos = i + 1
 				parser.state = .Field_Start
 			} else if ch == '\r' {
 				continue
@@ -305,19 +317,20 @@ streaming_parser_process_chunk :: proc(
 	}
 
 	// Save any incomplete data for next chunk
-	// If we're in the middle of a field (not at Field_Start), or if we have
-	// a partial row, save remaining data for next chunk
-	// Note: start_offset tracks where the last complete row ended
-	if parser.state != .Field_Start && start_offset < len(data) {
-		// We're in the middle of parsing - save remaining data
-		append(&parser.leftover, ..data[start_offset:])
-	} else if len(parser.current_row) > 0 && parser.state == .Field_Start {
-		// We have started a row but haven't finished it yet
-		// This shouldn't normally happen, but save the field buffer just in case
-		if len(parser.field_buffer) > 0 {
-			// We have a partial field - this is unusual but handle it
-			append(&parser.leftover, ..parser.field_buffer[:])
-		}
+	// KEY INSIGHT: We should NEVER save raw bytes as leftover EXCEPT for UTF-8 boundaries (handled above)
+	// Why? Because:
+	// 1. Partial fields are stored in field_buffer (persists across chunks)
+	// 2. Complete fields in incomplete rows are stored in current_row (persists across chunks)
+	// 3. If we save raw bytes, we'll reprocess data that's already in field_buffer or current_row
+	//
+	// The ONLY time we need leftover is for incomplete UTF-8 characters, which we handle
+	// specially in the UTF-8 decoding section above (lines 186-192)
+	//
+	// So: Do NOT save leftover here. The parser state persists across chunks.
+
+	// Clean up combined buffer if we created one
+	if len(combined_buffer) > 0 {
+		delete(combined_buffer)
 	}
 
 	parser.bytes_processed += len(chunk)
@@ -377,7 +390,7 @@ streaming_parser_finalize :: proc(parser: ^Streaming_Parser) -> bool {
 
 streaming_emit_field :: proc(parser: ^Streaming_Parser) {
 	field := string(parser.field_buffer[:])
-	field_copy := fmt.aprintf("%s", field)  // Allocate a copy
+	field_copy := strings.clone(field)  // Allocate a proper copy
 	append(&parser.current_row, field_copy)
 	clear(&parser.field_buffer)
 }

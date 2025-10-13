@@ -1,4 +1,4 @@
-package cisv
+package ocsv
 
 import "core:os"
 import "core:strings"
@@ -102,7 +102,13 @@ parse_csv :: proc(parser: ^Parser, data: string) -> bool {
                 emit_empty_field(parser)
             } else if ch == '\n' {
                 // Empty line or end of row
-                if len(parser.current_row) > 0 || i > 0 {
+                if len(parser.current_row) > 0 {
+                    // We have fields - emit trailing empty field if we're at Field_Start
+                    // (means we just saw a delimiter before the newline: ",\n")
+                    emit_empty_field(parser)
+                    emit_row(parser)
+                } else if i > 0 {
+                    // Empty line (but not first character)
                     emit_row(parser)
                 }
             } else if ch == '\r' {

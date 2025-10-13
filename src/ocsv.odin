@@ -19,7 +19,7 @@
 //         }
 //     }
 
-package cisv
+package ocsv
 
 // Version information
 VERSION_MAJOR :: 0

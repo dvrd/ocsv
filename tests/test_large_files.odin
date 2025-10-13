@@ -5,7 +5,7 @@ import "core:fmt"
 import "core:strings"
 import "core:os"
 import "core:time"
-import cisv "../src"
+import ocsv "../src"
 
 // ============================================================================
 // Large File Tests
@@ -62,10 +62,10 @@ test_large_file :: proc(t: ^testing.T, target_size: int, label: string) {
     fmt.printf("Parsing...\n")
     parse_start := time.now()
 
-    parser := cisv.parser_create()
-    defer cisv.parser_destroy(parser)
+    parser := ocsv.parser_create()
+    defer ocsv.parser_destroy(parser)
 
-    ok := cisv.parse_csv(parser, csv_data)
+    ok := ocsv.parse_csv(parser, csv_data)
     parse_elapsed := time.since(parse_start)
 
     testing.expect(t, ok, fmt.tprintf("%s file should parse successfully", label))
@@ -114,9 +114,9 @@ test_memory_scaling :: proc(t: ^testing.T) {
         input_size := len(csv_data)
 
         // Parse
-        parser := cisv.parser_create()
+        parser := ocsv.parser_create()
 
-        ok := cisv.parse_csv(parser, csv_data)
+        ok := ocsv.parse_csv(parser, csv_data)
         testing.expect(t, ok)
 
         // Check memory usage (rough estimate)
@@ -131,7 +131,7 @@ test_memory_scaling :: proc(t: ^testing.T) {
             int(mb_input), row_count, mb_estimated)
 
         // Cleanup
-        cisv.parser_destroy(parser)
+        ocsv.parser_destroy(parser)
         strings.builder_destroy(&builder)
     }
 
@@ -159,10 +159,10 @@ test_wide_row :: proc(t: ^testing.T) {
 
     csv_data := strings.to_string(builder)
 
-    parser := cisv.parser_create()
-    defer cisv.parser_destroy(parser)
+    parser := ocsv.parser_create()
+    defer ocsv.parser_destroy(parser)
 
-    ok := cisv.parse_csv(parser, csv_data)
+    ok := ocsv.parse_csv(parser, csv_data)
     testing.expect(t, ok, "Wide row should parse")
     testing.expect_value(t, len(parser.all_rows), 1)
     testing.expect_value(t, len(parser.all_rows[0]), num_cols)
@@ -193,10 +193,10 @@ test_many_rows :: proc(t: ^testing.T) {
 
     parse_start := time.now()
 
-    parser := cisv.parser_create()
-    defer cisv.parser_destroy(parser)
+    parser := ocsv.parser_create()
+    defer ocsv.parser_destroy(parser)
 
-    ok := cisv.parse_csv(parser, csv_data)
+    ok := ocsv.parse_csv(parser, csv_data)
     parse_elapsed := time.since(parse_start)
 
     testing.expect(t, ok, "Many rows should parse")

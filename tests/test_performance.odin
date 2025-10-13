@@ -4,7 +4,7 @@ import "core:testing"
 import "core:fmt"
 import "core:strings"
 import "core:time"
-import cisv "../src"
+import ocsv "../src"
 
 // ============================================================================
 // Performance Regression Tests
@@ -53,11 +53,11 @@ test_performance_simple_csv :: proc(t: ^testing.T) {
     mb := f64(data_size) / 1024 / 1024
 
     // Run benchmark
-    parser := cisv.parser_create()
-    defer cisv.parser_destroy(parser)
+    parser := ocsv.parser_create()
+    defer ocsv.parser_destroy(parser)
 
     start := time.now()
-    ok := cisv.parse_csv(parser, csv_data)
+    ok := ocsv.parse_csv(parser, csv_data)
     elapsed := time.since(start)
 
     testing.expect(t, ok, "Parse should succeed")
@@ -119,11 +119,11 @@ field",`)
     mb := f64(data_size) / 1024 / 1024
 
     // Run benchmark
-    parser := cisv.parser_create()
-    defer cisv.parser_destroy(parser)
+    parser := ocsv.parser_create()
+    defer ocsv.parser_destroy(parser)
 
     start := time.now()
-    ok := cisv.parse_csv(parser, csv_data)
+    ok := ocsv.parse_csv(parser, csv_data)
     elapsed := time.since(start)
 
     testing.expect(t, ok, "Parse should succeed")
@@ -183,10 +183,10 @@ test_performance_consistency :: proc(t: ^testing.T) {
     fmt.printf("Running %d iterations...\n", num_runs)
 
     for run in 0..<num_runs {
-        parser := cisv.parser_create()
+        parser := ocsv.parser_create()
 
         start := time.now()
-        ok := cisv.parse_csv(parser, csv_data)
+        ok := ocsv.parse_csv(parser, csv_data)
         elapsed := time.since(start)
 
         testing.expect(t, ok)
@@ -194,7 +194,7 @@ test_performance_consistency :: proc(t: ^testing.T) {
         seconds := time.duration_seconds(elapsed)
         throughputs[run] = mb / seconds
 
-        cisv.parser_destroy(parser)
+        ocsv.parser_destroy(parser)
     }
 
     // Calculate statistics
@@ -259,11 +259,11 @@ test_performance_delimiters :: proc(t: ^testing.T) {
         mb := f64(data_size) / 1024 / 1024
 
         // Parse
-        parser := cisv.parser_create()
+        parser := ocsv.parser_create()
         parser.config.delimiter = delim_info.char
 
         start := time.now()
-        ok := cisv.parse_csv(parser, csv_data)
+        ok := ocsv.parse_csv(parser, csv_data)
         elapsed := time.since(start)
 
         testing.expect(t, ok)
@@ -273,7 +273,7 @@ test_performance_delimiters :: proc(t: ^testing.T) {
 
         fmt.printf("  %s: %.2f MB/s\n", delim_info.name, throughput)
 
-        cisv.parser_destroy(parser)
+        ocsv.parser_destroy(parser)
         strings.builder_destroy(&builder)
     }
 

@@ -3,15 +3,32 @@ lib/*.so
 lib/*.dylib
 lib/*.dll
 lib/*.a
+*.dylib
+*.so
+*.dll
 
 # Odin build artifacts
 *.o
 *.obj
 *.ll
 *.bc
+*.bin
+*.dSYM/
 
 # Test artifacts
 tests/*.out
+test_*.csv
+*.csv.tmp
+
+# Debug directory (temporary test files)
+debug/*.csv
+debug/test_*
+debug/*.bin
+debug/*.dSYM/
+
+# Examples directory (generated files)
+examples/large_data.csv
+examples/*.tmp
 
 # Bun
 node_modules/

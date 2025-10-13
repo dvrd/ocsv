@@ -1,4 +1,4 @@
-package cisv
+package ocsv
 
 // Schema validation system for CSV parsing
 // Provides type checking, conversion, and custom validation rules

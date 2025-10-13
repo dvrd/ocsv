@@ -2,97 +2,97 @@ package tests
 
 import "core:testing"
 import "core:fmt"
-import cisv "../src"
+import ocsv "../src"
 
 // Test basic type validation
 @(test)
 test_schema_validate_int :: proc(t: ^testing.T) {
-    schema := cisv.schema_create([]cisv.Column_Schema{
+    schema := ocsv.schema_create([]ocsv.Column_Schema{
         {name = "id", col_type = .Int, required = true},
     })
 
     // Valid integer
-    result := cisv.validate_row(&schema, []string{"123"}, 1)
-    defer cisv.validation_result_destroy(&result)
+    result := ocsv.validate_row(&schema, []string{"123"}, 1)
+    defer ocsv.validation_result_destroy(&result)
     testing.expect(t, result.valid, "Valid integer should pass")
 
     // Invalid integer
-    result2 := cisv.validate_row(&schema, []string{"abc"}, 1)
-    defer cisv.validation_result_destroy(&result2)
+    result2 := ocsv.validate_row(&schema, []string{"abc"}, 1)
+    defer ocsv.validation_result_destroy(&result2)
     testing.expect(t, !result2.valid, "Invalid integer should fail")
     testing.expect(t, len(result2.errors) > 0, "Should have error")
 }
 
 @(test)
 test_schema_validate_float :: proc(t: ^testing.T) {
-    schema := cisv.schema_create([]cisv.Column_Schema{
+    schema := ocsv.schema_create([]ocsv.Column_Schema{
         {name = "price", col_type = .Float, required = true},
     })
 
     // Valid float
-    result := cisv.validate_row(&schema, []string{"19.99"}, 1)
-    defer cisv.validation_result_destroy(&result)
+    result := ocsv.validate_row(&schema, []string{"19.99"}, 1)
+    defer ocsv.validation_result_destroy(&result)
     testing.expect(t, result.valid, "Valid float should pass")
 
     // Valid integer as float
-    result2 := cisv.validate_row(&schema, []string{"20"}, 1)
-    defer cisv.validation_result_destroy(&result2)
+    result2 := ocsv.validate_row(&schema, []string{"20"}, 1)
+    defer ocsv.validation_result_destroy(&result2)
     testing.expect(t, result2.valid, "Integer as float should pass")
 
     // Invalid float
-    result3 := cisv.validate_row(&schema, []string{"not-a-number"}, 1)
-    defer cisv.validation_result_destroy(&result3)
+    result3 := ocsv.validate_row(&schema, []string{"not-a-number"}, 1)
+    defer ocsv.validation_result_destroy(&result3)
     testing.expect(t, !result3.valid, "Invalid float should fail")
 }
 
 @(test)
 test_schema_validate_bool :: proc(t: ^testing.T) {
-    schema := cisv.schema_create([]cisv.Column_Schema{
+    schema := ocsv.schema_create([]ocsv.Column_Schema{
         {name = "active", col_type = .Bool, required = true},
     })
 
     valid_bools := []string{"true", "false", "yes", "no", "1", "0", "t", "f", "TRUE", "FALSE"}
 
     for value in valid_bools {
-        result := cisv.validate_row(&schema, []string{value}, 1)
-        defer cisv.validation_result_destroy(&result)
+        result := ocsv.validate_row(&schema, []string{value}, 1)
+        defer ocsv.validation_result_destroy(&result)
         testing.expect(t, result.valid, fmt.tprintf("'%s' should be valid bool", value))
     }
 
     // Invalid bool
-    result := cisv.validate_row(&schema, []string{"maybe"}, 1)
-    defer cisv.validation_result_destroy(&result)
+    result := ocsv.validate_row(&schema, []string{"maybe"}, 1)
+    defer ocsv.validation_result_destroy(&result)
     testing.expect(t, !result.valid, "Invalid bool should fail")
 }
 
 @(test)
 test_schema_required_field :: proc(t: ^testing.T) {
-    schema := cisv.schema_create([]cisv.Column_Schema{
+    schema := ocsv.schema_create([]ocsv.Column_Schema{
         {name = "name", col_type = .String, required = true, nullable = false},
     })
 
     // Empty string should fail
-    result := cisv.validate_row(&schema, []string{""}, 1)
-    defer cisv.validation_result_destroy(&result)
+    result := ocsv.validate_row(&schema, []string{""}, 1)
+    defer ocsv.validation_result_destroy(&result)
     testing.expect(t, !result.valid, "Empty required field should fail")
     testing.expect(t, len(result.errors) > 0, "Should have error")
 }
 
 @(test)
 test_schema_nullable_field :: proc(t: ^testing.T) {
-    schema := cisv.schema_create([]cisv.Column_Schema{
+    schema := ocsv.schema_create([]ocsv.Column_Schema{
         {name = "description", col_type = .String, required = false, nullable = true},
     })
 
     // Empty string should pass
-    result := cisv.validate_row(&schema, []string{""}, 1)
-    defer cisv.validation_result_destroy(&result)
+    result := ocsv.validate_row(&schema, []string{""}, 1)
+    defer ocsv.validation_result_destroy(&result)
     testing.expect(t, result.valid, "Empty nullable field should pass")
 }
 
 @(test)
 test_schema_min_max_value :: proc(t: ^testing.T) {
-    schema := cisv.schema_create([]cisv.Column_Schema{
+    schema := ocsv.schema_create([]ocsv.Column_Schema{
         {
             name = "age",
             col_type = .Int,
@@ -103,24 +103,24 @@ test_schema_min_max_value :: proc(t: ^testing.T) {
     })
 
     // Valid value
-    result := cisv.validate_row(&schema, []string{"25"}, 1)
-    defer cisv.validation_result_destroy(&result)
+    result := ocsv.validate_row(&schema, []string{"25"}, 1)
+    defer ocsv.validation_result_destroy(&result)
     testing.expect(t, result.valid, "Value within range should pass")
 
     // Below minimum
-    result2 := cisv.validate_row(&schema, []string{"-5"}, 1)
-    defer cisv.validation_result_destroy(&result2)
+    result2 := ocsv.validate_row(&schema, []string{"-5"}, 1)
+    defer ocsv.validation_result_destroy(&result2)
     testing.expect(t, !result2.valid, "Value below minimum should fail")
 
     // Above maximum
-    result3 := cisv.validate_row(&schema, []string{"150"}, 1)
-    defer cisv.validation_result_destroy(&result3)
+    result3 := ocsv.validate_row(&schema, []string{"150"}, 1)
+    defer ocsv.validation_result_destroy(&result3)
     testing.expect(t, !result3.valid, "Value above maximum should fail")
 }
 
 @(test)
 test_schema_string_length :: proc(t: ^testing.T) {
-    schema := cisv.schema_create([]cisv.Column_Schema{
+    schema := ocsv.schema_create([]ocsv.Column_Schema{
         {
             name = "code",
             col_type = .String,
@@ -131,25 +131,25 @@ test_schema_string_length :: proc(t: ^testing.T) {
     })
 
     // Valid length
-    result := cisv.validate_row(&schema, []string{"ABC123"}, 1)
-    defer cisv.validation_result_destroy(&result)
+    result := ocsv.validate_row(&schema, []string{"ABC123"}, 1)
+    defer ocsv.validation_result_destroy(&result)
     testing.expect(t, result.valid, "String within length range should pass")
 
     // Too short
-    result2 := cisv.validate_row(&schema, []string{"AB"}, 1)
-    defer cisv.validation_result_destroy(&result2)
+    result2 := ocsv.validate_row(&schema, []string{"AB"}, 1)
+    defer ocsv.validation_result_destroy(&result2)
     testing.expect(t, !result2.valid, "String below minimum length should fail")
 
     // Too long
-    result3 := cisv.validate_row(&schema, []string{"ABCDEFGHIJK"}, 1)
-    defer cisv.validation_result_destroy(&result3)
+    result3 := ocsv.validate_row(&schema, []string{"ABCDEFGHIJK"}, 1)
+    defer ocsv.validation_result_destroy(&result3)
     testing.expect(t, !result3.valid, "String above maximum length should fail")
 }
 
 @(test)
 test_schema_allowed_values :: proc(t: ^testing.T) {
     allowed := []string{"red", "green", "blue"}
-    schema := cisv.schema_create([]cisv.Column_Schema{
+    schema := ocsv.schema_create([]ocsv.Column_Schema{
         {
             name = "color",
             col_type = .String,
@@ -159,13 +159,13 @@ test_schema_allowed_values :: proc(t: ^testing.T) {
     })
 
     // Valid value
-    result := cisv.validate_row(&schema, []string{"red"}, 1)
-    defer cisv.validation_result_destroy(&result)
+    result := ocsv.validate_row(&schema, []string{"red"}, 1)
+    defer ocsv.validation_result_destroy(&result)
     testing.expect(t, result.valid, "Allowed value should pass")
 
     // Invalid value
-    result2 := cisv.validate_row(&schema, []string{"yellow"}, 1)
-    defer cisv.validation_result_destroy(&result2)
+    result2 := ocsv.validate_row(&schema, []string{"yellow"}, 1)
+    defer ocsv.validation_result_destroy(&result2)
     testing.expect(t, !result2.valid, "Disallowed value should fail")
 }
 
@@ -181,7 +181,7 @@ test_schema_custom_validator :: proc(t: ^testing.T) {
         return false, fmt.aprintf("Email must contain @")
     }
 
-    schema := cisv.schema_create([]cisv.Column_Schema{
+    schema := ocsv.schema_create([]ocsv.Column_Schema{
         {
             name = "email",
             col_type = .Custom,
@@ -191,19 +191,19 @@ test_schema_custom_validator :: proc(t: ^testing.T) {
     })
 
     // Valid email
-    result := cisv.validate_row(&schema, []string{"user@example.com"}, 1)
-    defer cisv.validation_result_destroy(&result)
+    result := ocsv.validate_row(&schema, []string{"user@example.com"}, 1)
+    defer ocsv.validation_result_destroy(&result)
     testing.expect(t, result.valid, "Valid email should pass")
 
     // Invalid email
-    result2 := cisv.validate_row(&schema, []string{"invalid-email"}, 1)
-    defer cisv.validation_result_destroy(&result2)
+    result2 := ocsv.validate_row(&schema, []string{"invalid-email"}, 1)
+    defer ocsv.validation_result_destroy(&result2)
     testing.expect(t, !result2.valid, "Invalid email should fail")
 }
 
 @(test)
 test_schema_multiple_columns :: proc(t: ^testing.T) {
-    schema := cisv.schema_create([]cisv.Column_Schema{
+    schema := ocsv.schema_create([]ocsv.Column_Schema{
         {name = "id", col_type = .Int, required = true},
         {name = "name", col_type = .String, required = true},
         {name = "price", col_type = .Float, required = true},
@@ -211,50 +211,50 @@ test_schema_multiple_columns :: proc(t: ^testing.T) {
     })
 
     // Valid row
-    result := cisv.validate_row(&schema, []string{"1", "Product", "19.99", "true"}, 1)
-    defer cisv.validation_result_destroy(&result)
+    result := ocsv.validate_row(&schema, []string{"1", "Product", "19.99", "true"}, 1)
+    defer ocsv.validation_result_destroy(&result)
     testing.expect(t, result.valid, "Valid row should pass")
 
     // Invalid row (bad float)
-    result2 := cisv.validate_row(&schema, []string{"1", "Product", "not-a-price", "true"}, 1)
-    defer cisv.validation_result_destroy(&result2)
+    result2 := ocsv.validate_row(&schema, []string{"1", "Product", "not-a-price", "true"}, 1)
+    defer ocsv.validation_result_destroy(&result2)
     testing.expect(t, !result2.valid, "Row with invalid float should fail")
 }
 
 @(test)
 test_schema_missing_column :: proc(t: ^testing.T) {
-    schema := cisv.schema_create([]cisv.Column_Schema{
+    schema := ocsv.schema_create([]ocsv.Column_Schema{
         {name = "id", col_type = .Int, required = true},
         {name = "name", col_type = .String, required = true},
     })
 
     // Row with missing column
-    result := cisv.validate_row(&schema, []string{"1"}, 1)
-    defer cisv.validation_result_destroy(&result)
+    result := ocsv.validate_row(&schema, []string{"1"}, 1)
+    defer ocsv.validation_result_destroy(&result)
     testing.expect(t, !result.valid, "Row with missing required column should fail")
 }
 
 @(test)
 test_schema_extra_column :: proc(t: ^testing.T) {
-    schema := cisv.schema_create([]cisv.Column_Schema{
+    schema := ocsv.schema_create([]ocsv.Column_Schema{
         {name = "id", col_type = .Int, required = true},
     })
 
     // Row with extra column
-    result := cisv.validate_row(&schema, []string{"1", "extra"}, 1)
-    defer cisv.validation_result_destroy(&result)
+    result := ocsv.validate_row(&schema, []string{"1", "extra"}, 1)
+    defer ocsv.validation_result_destroy(&result)
     testing.expect(t, !result.valid, "Row with extra column should fail by default")
 
     // Allow extra columns
     schema.allow_extra_columns = true
-    result2 := cisv.validate_row(&schema, []string{"1", "extra"}, 1)
-    defer cisv.validation_result_destroy(&result2)
+    result2 := ocsv.validate_row(&schema, []string{"1", "extra"}, 1)
+    defer ocsv.validation_result_destroy(&result2)
     testing.expect(t, result2.valid, "Row with extra column should pass when allowed")
 }
 
 @(test)
 test_convert_value_int :: proc(t: ^testing.T) {
-    value, ok := cisv.convert_value(.Int, "123")
+    value, ok := ocsv.convert_value(.Int, "123")
     testing.expect(t, ok, "Should convert valid integer")
 
     int_val, is_int := value.(i64)
@@ -262,13 +262,13 @@ test_convert_value_int :: proc(t: ^testing.T) {
     testing.expect_value(t, int_val, i64(123))
 
     // Invalid conversion
-    _, ok2 := cisv.convert_value(.Int, "abc")
+    _, ok2 := ocsv.convert_value(.Int, "abc")
     testing.expect(t, !ok2, "Should fail on invalid integer")
 }
 
 @(test)
 test_convert_value_float :: proc(t: ^testing.T) {
-    value, ok := cisv.convert_value(.Float, "19.99")
+    value, ok := ocsv.convert_value(.Float, "19.99")
     testing.expect(t, ok, "Should convert valid float")
 
     float_val, is_float := value.(f64)
@@ -278,14 +278,14 @@ test_convert_value_float :: proc(t: ^testing.T) {
 
 @(test)
 test_convert_value_bool :: proc(t: ^testing.T) {
-    value, ok := cisv.convert_value(.Bool, "true")
+    value, ok := ocsv.convert_value(.Bool, "true")
     testing.expect(t, ok, "Should convert 'true'")
 
     bool_val, is_bool := value.(bool)
     testing.expect(t, is_bool, "Should be bool type")
     testing.expect(t, bool_val == true, "Should be true")
 
-    value2, ok2 := cisv.convert_value(.Bool, "0")
+    value2, ok2 := ocsv.convert_value(.Bool, "0")
     testing.expect(t, ok2, "Should convert '0'")
 
     bool_val2, is_bool2 := value2.(bool)
@@ -295,7 +295,7 @@ test_convert_value_bool :: proc(t: ^testing.T) {
 
 @(test)
 test_validate_and_convert :: proc(t: ^testing.T) {
-    schema := cisv.schema_create([]cisv.Column_Schema{
+    schema := ocsv.schema_create([]ocsv.Column_Schema{
         {name = "id", col_type = .Int, required = true},
         {name = "name", col_type = .String, required = true},
         {name = "price", col_type = .Float, required = true},
@@ -307,13 +307,13 @@ test_validate_and_convert :: proc(t: ^testing.T) {
         {"2", "Product B", "29.99"},
     }
 
-    typed_rows, result := cisv.validate_and_convert(&schema, rows)
+    typed_rows, result := ocsv.validate_and_convert(&schema, rows)
     defer {
         for row in typed_rows {
             delete(row)
         }
         delete(typed_rows)
-        cisv.validation_result_destroy(&result)
+        ocsv.validation_result_destroy(&result)
     }
 
     testing.expect(t, result.valid, "Should validate successfully")
@@ -335,7 +335,7 @@ test_validate_and_convert :: proc(t: ^testing.T) {
 
 @(test)
 test_schema_strict_mode :: proc(t: ^testing.T) {
-    schema := cisv.schema_create([]cisv.Column_Schema{
+    schema := ocsv.schema_create([]ocsv.Column_Schema{
         {name = "id", col_type = .Int, required = true},
         {name = "value", col_type = .Int, required = true},
     }, strict = true)
@@ -346,13 +346,13 @@ test_schema_strict_mode :: proc(t: ^testing.T) {
         {"3", "300"},
     }
 
-    typed_rows, result := cisv.validate_and_convert(&schema, rows)
+    typed_rows, result := ocsv.validate_and_convert(&schema, rows)
     defer {
         for row in typed_rows {
             delete(row)
         }
         delete(typed_rows)
-        cisv.validation_result_destroy(&result)
+        ocsv.validation_result_destroy(&result)
     }
 
     testing.expect(t, !result.valid, "Should fail in strict mode")
@@ -361,7 +361,7 @@ test_schema_strict_mode :: proc(t: ^testing.T) {
 
 @(test)
 test_schema_format_error :: proc(t: ^testing.T) {
-    err := cisv.Validation_Error{
+    err := ocsv.Validation_Error{
         row = 5,
         column = 2,
         column_name = "price",
@@ -370,7 +370,7 @@ test_schema_format_error :: proc(t: ^testing.T) {
         message = "Invalid float value",
     }
 
-    formatted := cisv.format_validation_error(err)
+    formatted := ocsv.format_validation_error(err)
     defer delete(formatted)
 
     testing.expect(t, len(formatted) > 0, "Formatted error should not be empty")
@@ -404,7 +404,7 @@ test_schema_real_world_example :: proc(t: ^testing.T) {
     // Real-world product catalog schema
     allowed_categories := []string{"Electronics", "Books", "Clothing"}
 
-    schema := cisv.schema_create([]cisv.Column_Schema{
+    schema := ocsv.schema_create([]ocsv.Column_Schema{
         {
             name = "sku",
             col_type = .String,
@@ -453,13 +453,13 @@ test_schema_real_world_example :: proc(t: ^testing.T) {
         {"CLO-789", "T-Shirt", "Clothing", "19.99", "1", "200"},
     }
 
-    typed_rows, result := cisv.validate_and_convert(&schema, rows)
+    typed_rows, result := ocsv.validate_and_convert(&schema, rows)
     defer {
         for row in typed_rows {
             delete(row)
         }
         delete(typed_rows)
-        cisv.validation_result_destroy(&result)
+        ocsv.validation_result_destroy(&result)
     }
 
     testing.expect(t, result.valid, "Real-world example should validate")

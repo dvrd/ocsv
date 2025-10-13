@@ -4,7 +4,7 @@ import "core:testing"
 import "core:fmt"
 import "core:strings"
 import "core:os"
-import cisv "../src"
+import ocsv "../src"
 
 // ============================================================================
 // Integration Tests
@@ -17,12 +17,12 @@ test_integration_basic_workflow :: proc(t: ^testing.T) {
     fmt.printf("\n=== Integration: Basic Workflow ===\n")
 
     // Step 1: Create parser
-    parser := cisv.parser_create()
-    defer cisv.parser_destroy(parser)
+    parser := ocsv.parser_create()
+    defer ocsv.parser_destroy(parser)
 
     // Step 2: Parse CSV data
     csv_data := "name,age,city\nAlice,30,NYC\nBob,25,SF\n"
-    ok := cisv.parse_csv(parser, csv_data)
+    ok := ocsv.parse_csv(parser, csv_data)
     testing.expect(t, ok, "Parse should succeed")
 
     // Step 3: Access results
@@ -50,18 +50,18 @@ test_integration_basic_workflow :: proc(t: ^testing.T) {
 test_integration_parser_reuse :: proc(t: ^testing.T) {
     fmt.printf("\n=== Integration: Parser Reuse ===\n")
 
-    parser := cisv.parser_create()
-    defer cisv.parser_destroy(parser)
+    parser := ocsv.parser_create()
+    defer ocsv.parser_destroy(parser)
 
     // First parse
     csv1 := "a,b\n1,2\n"
-    ok1 := cisv.parse_csv(parser, csv1)
+    ok1 := ocsv.parse_csv(parser, csv1)
     testing.expect(t, ok1)
     row_count_1 := len(parser.all_rows)
 
     // Second parse (should clear previous results)
     csv2 := "x,y,z\n10,20,30\n"
-    ok2 := cisv.parse_csv(parser, csv2)
+    ok2 := ocsv.parse_csv(parser, csv2)
     testing.expect(t, ok2)
     row_count_2 := len(parser.all_rows)
 
@@ -80,15 +80,15 @@ test_integration_parser_reuse :: proc(t: ^testing.T) {
 test_integration_custom_config :: proc(t: ^testing.T) {
     fmt.printf("\n=== Integration: Custom Configuration ===\n")
 
-    parser := cisv.parser_create()
-    defer cisv.parser_destroy(parser)
+    parser := ocsv.parser_create()
+    defer ocsv.parser_destroy(parser)
 
     // Configure for TSV with single quotes
     parser.config.delimiter = '\t'
     parser.config.quote = '\''
 
     csv_data := "name\tvalue\n'quoted\ttab'\t100\n"
-    ok := cisv.parse_csv(parser, csv_data)
+    ok := ocsv.parse_csv(parser, csv_data)
     testing.expect(t, ok)
 
     testing.expect_value(t, len(parser.all_rows), 2)
@@ -103,8 +103,8 @@ test_integration_custom_config :: proc(t: ^testing.T) {
 test_integration_comments :: proc(t: ^testing.T) {
     fmt.printf("\n=== Integration: Comment Filtering ===\n")
 
-    parser := cisv.parser_create()
-    defer cisv.parser_destroy(parser)
+    parser := ocsv.parser_create()
+    defer ocsv.parser_destroy(parser)
 
     parser.config.comment = '#'
 
@@ -115,7 +115,7 @@ data1,100
 data2,200
 # Final comment`
 
-    ok := cisv.parse_csv(parser, csv_data)
+    ok := ocsv.parse_csv(parser, csv_data)
     testing.expect(t, ok)
 
     // Should only have header + 2 data rows (3 comment lines filtered)
@@ -137,22 +137,22 @@ test_integration_strict_vs_relaxed :: proc(t: ^testing.T) {
 
     // Strict mode should fail
     {
-        parser := cisv.parser_create()
-        defer cisv.parser_destroy(parser)
+        parser := ocsv.parser_create()
+        defer ocsv.parser_destroy(parser)
 
         parser.config.relaxed = false
-        ok := cisv.parse_csv(parser, malformed)
+        ok := ocsv.parse_csv(parser, malformed)
         testing.expect(t, !ok, "Strict mode should reject malformed CSV")
         fmt.printf("✅ Strict mode correctly rejected malformed CSV\n")
     }
 
     // Relaxed mode should succeed
     {
-        parser := cisv.parser_create()
-        defer cisv.parser_destroy(parser)
+        parser := ocsv.parser_create()
+        defer ocsv.parser_destroy(parser)
 
         parser.config.relaxed = true
-        ok := cisv.parse_csv(parser, malformed)
+        ok := ocsv.parse_csv(parser, malformed)
         testing.expect(t, ok, "Relaxed mode should accept malformed CSV")
         fmt.printf("✅ Relaxed mode accepted malformed CSV\n")
     }
@@ -178,15 +178,15 @@ test_integration_empty_whitespace :: proc(t: ^testing.T) {
     }
 
     for test_case in test_cases {
-        parser := cisv.parser_create()
+        parser := ocsv.parser_create()
 
-        ok := cisv.parse_csv(parser, test_case.input)
+        ok := ocsv.parse_csv(parser, test_case.input)
         testing.expect(t, ok, fmt.tprintf("Parse should succeed for: %s", test_case.description))
 
         row_count := len(parser.all_rows)
         testing.expect_value(t, row_count, test_case.expected_rows)
 
-        cisv.parser_destroy(parser)
+        ocsv.parser_destroy(parser)
     }
 
     fmt.printf("✅ Empty and whitespace cases handled correctly\n")
@@ -210,10 +210,10 @@ test_integration_large_dataset :: proc(t: ^testing.T) {
     csv_data := strings.to_string(builder)
 
     // Parse
-    parser := cisv.parser_create()
-    defer cisv.parser_destroy(parser)
+    parser := ocsv.parser_create()
+    defer ocsv.parser_destroy(parser)
 
-    ok := cisv.parse_csv(parser, csv_data)
+    ok := ocsv.parse_csv(parser, csv_data)
     testing.expect(t, ok, "Large dataset should parse")
     testing.expect_value(t, len(parser.all_rows), num_rows)
 
@@ -234,10 +234,10 @@ test_integration_jagged_csv :: proc(t: ^testing.T) {
 x,y,z,extra
 single`
 
-    parser := cisv.parser_create()
-    defer cisv.parser_destroy(parser)
+    parser := ocsv.parser_create()
+    defer ocsv.parser_destroy(parser)
 
-    ok := cisv.parse_csv(parser, csv_data)
+    ok := ocsv.parse_csv(parser, csv_data)
     testing.expect(t, ok)
 
     testing.expect_value(t, len(parser.all_rows), 4)
@@ -263,11 +263,11 @@ Multi-line description",50
 "Item C",9.99,"Simple item",200
 # End of data`
 
-    parser := cisv.parser_create()
-    defer cisv.parser_destroy(parser)
+    parser := ocsv.parser_create()
+    defer ocsv.parser_destroy(parser)
     parser.config.comment = '#'
 
-    ok := cisv.parse_csv(parser, csv_data)
+    ok := ocsv.parse_csv(parser, csv_data)
     testing.expect(t, ok)
 
     // Should have header + 3 data rows (2 comment lines filtered)
@@ -295,19 +295,19 @@ Multi-line description",50
 test_integration_error_recovery :: proc(t: ^testing.T) {
     fmt.printf("\n=== Integration: Error Recovery ===\n")
 
-    parser := cisv.parser_create()
-    defer cisv.parser_destroy(parser)
+    parser := ocsv.parser_create()
+    defer ocsv.parser_destroy(parser)
     parser.config.relaxed = false // Strict mode
 
     // First parse: malformed (should fail)
     malformed := `"unterminated quote,value`
-    ok1 := cisv.parse_csv(parser, malformed)
+    ok1 := ocsv.parse_csv(parser, malformed)
     testing.expect(t, !ok1, "Malformed CSV should fail in strict mode")
 
     // Second parse: valid (should succeed)
     valid := `a,b,c
 1,2,3`
-    ok2 := cisv.parse_csv(parser, valid)
+    ok2 := ocsv.parse_csv(parser, valid)
     testing.expect(t, ok2, "Valid CSV should parse after error")
     testing.expect_value(t, len(parser.all_rows), 2)
 
@@ -327,10 +327,10 @@ Español,Hola,España
 Français,Bonjour,France
 한국어,안녕하세요,한국`
 
-    parser := cisv.parser_create()
-    defer cisv.parser_destroy(parser)
+    parser := ocsv.parser_create()
+    defer ocsv.parser_destroy(parser)
 
-    ok := cisv.parse_csv(parser, csv_data)
+    ok := ocsv.parse_csv(parser, csv_data)
     testing.expect(t, ok)
 
     testing.expect_value(t, len(parser.all_rows), 7) // header + 6 languages
@@ -361,15 +361,15 @@ test_integration_common_formats :: proc(t: ^testing.T) {
     }
 
     for format in formats {
-        parser := cisv.parser_create()
+        parser := ocsv.parser_create()
         parser.config.delimiter = format.delimiter
 
-        ok := cisv.parse_csv(parser, format.data)
+        ok := ocsv.parse_csv(parser, format.data)
         testing.expect(t, ok, fmt.tprintf("%s should parse", format.name))
         testing.expect_value(t, len(parser.all_rows), 2)
         testing.expect_value(t, len(parser.all_rows[0]), 3)
 
-        cisv.parser_destroy(parser)
+        ocsv.parser_destroy(parser)
     }
 
     fmt.printf("✅ All common formats supported\n")

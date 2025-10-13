@@ -3,14 +3,14 @@ package tests
 import "core:testing"
 import "core:fmt"
 import "core:os"
-import cisv "../src"
+import ocsv "../src"
 
 // Test data for streaming tests
 Test_Context :: struct {
 	rows_collected: [dynamic][]string,
 	row_count:      int,
 	should_stop_at: int,  // Row number to stop at (0 = don't stop)
-	errors:         [dynamic]cisv.Error_Info,
+	errors:         [dynamic]ocsv.Error_Info,
 }
 
 // Basic streaming callback that collects all rows
@@ -34,7 +34,7 @@ collect_rows_callback :: proc(row: []string, row_num: int, user_data: rawptr) ->
 }
 
 // Error callback that collects errors
-collect_errors_callback :: proc(error: cisv.Error_Info, row_num: int, user_data: rawptr) -> bool {
+collect_errors_callback :: proc(error: ocsv.Error_Info, row_num: int, user_data: rawptr) -> bool {
 	ctx := cast(^Test_Context)user_data
 	append(&ctx.errors, error)
 	return true  // Continue parsing
@@ -66,11 +66,11 @@ test_streaming_basic :: proc(t: ^testing.T) {
 	ctx := Test_Context{}
 	defer destroy_test_context(&ctx)
 
-	config := cisv.default_streaming_config(collect_rows_callback)
+	config := ocsv.default_streaming_config(collect_rows_callback)
 	config.user_data = &ctx
 
 	// Parse file
-	rows_processed, ok := cisv.parse_csv_stream(config, test_file)
+	rows_processed, ok := ocsv.parse_csv_stream(config, test_file)
 
 	testing.expect(t, ok, "Streaming parse should succeed")
 	testing.expect_value(t, rows_processed, 4)  // Header + 3 data rows
@@ -114,12 +114,12 @@ test_streaming_large_file :: proc(t: ^testing.T) {
 	ctx := Test_Context{}
 	defer destroy_test_context(&ctx)
 
-	config := cisv.default_streaming_config(collect_rows_callback)
+	config := ocsv.default_streaming_config(collect_rows_callback)
 	config.chunk_size = 1024  // 1KB chunks
 	config.user_data = &ctx
 
 	// Parse file
-	rows_processed, ok := cisv.parse_csv_stream(config, test_file)
+	rows_processed, ok := ocsv.parse_csv_stream(config, test_file)
 
 	testing.expect(t, ok, "Streaming parse should succeed")
 	testing.expect_value(t, rows_processed, 1001)  // Header + 1000 rows
@@ -147,12 +147,12 @@ with newline"
 	ctx := Test_Context{}
 	defer destroy_test_context(&ctx)
 
-	config := cisv.default_streaming_config(collect_rows_callback)
+	config := ocsv.default_streaming_config(collect_rows_callback)
 	config.chunk_size = 32  // Very small chunks to test boundary handling
 	config.user_data = &ctx
 
 	// Parse file
-	rows_processed, ok := cisv.parse_csv_stream(config, test_file)
+	rows_processed, ok := ocsv.parse_csv_stream(config, test_file)
 
 	testing.expect(t, ok, "Streaming parse should succeed")
 	testing.expect_value(t, rows_processed, 4)
@@ -178,11 +178,11 @@ test_streaming_early_stop :: proc(t: ^testing.T) {
 	ctx := Test_Context{should_stop_at = 3}
 	defer destroy_test_context(&ctx)
 
-	config := cisv.default_streaming_config(collect_rows_callback)
+	config := ocsv.default_streaming_config(collect_rows_callback)
 	config.user_data = &ctx
 
 	// Parse file
-	rows_processed, ok := cisv.parse_csv_stream(config, test_file)
+	rows_processed, ok := ocsv.parse_csv_stream(config, test_file)
 
 	testing.expect(t, !ok, "Should stop early")
 	testing.expect_value(t, ctx.row_count, 3)
@@ -200,10 +200,10 @@ test_streaming_empty_fields :: proc(t: ^testing.T) {
 	ctx := Test_Context{}
 	defer destroy_test_context(&ctx)
 
-	config := cisv.default_streaming_config(collect_rows_callback)
+	config := ocsv.default_streaming_config(collect_rows_callback)
 	config.user_data = &ctx
 
-	rows_processed, ok := cisv.parse_csv_stream(config, test_file)
+	rows_processed, ok := ocsv.parse_csv_stream(config, test_file)
 
 	testing.expect(t, ok, "Should parse empty fields")
 	testing.expect_value(t, rows_processed, 4)
@@ -230,11 +230,11 @@ test_streaming_utf8 :: proc(t: ^testing.T) {
 	ctx := Test_Context{}
 	defer destroy_test_context(&ctx)
 
-	config := cisv.default_streaming_config(collect_rows_callback)
+	config := ocsv.default_streaming_config(collect_rows_callback)
 	config.chunk_size = 16  // Small chunks to test UTF-8 boundary handling
 	config.user_data = &ctx
 
-	rows_processed, ok := cisv.parse_csv_stream(config, test_file)
+	rows_processed, ok := ocsv.parse_csv_stream(config, test_file)
 
 	testing.expect(t, ok, "Should parse UTF-8")
 	testing.expect_value(t, rows_processed, 3)
@@ -256,10 +256,10 @@ test_streaming_comments :: proc(t: ^testing.T) {
 	ctx := Test_Context{}
 	defer destroy_test_context(&ctx)
 
-	config := cisv.default_streaming_config(collect_rows_callback)
+	config := ocsv.default_streaming_config(collect_rows_callback)
 	config.user_data = &ctx
 
-	rows_processed, ok := cisv.parse_csv_stream(config, test_file)
+	rows_processed, ok := ocsv.parse_csv_stream(config, test_file)
 
 	testing.expect(t, ok, "Should skip comments")
 	testing.expect_value(t, rows_processed, 3)  // Header + 2 data rows (comments skipped)
@@ -281,15 +281,15 @@ test_streaming_error_callback :: proc(t: ^testing.T) {
 	ctx := Test_Context{}
 	defer destroy_test_context(&ctx)
 
-	config := cisv.default_streaming_config(collect_rows_callback)
+	config := ocsv.default_streaming_config(collect_rows_callback)
 	config.error_callback = collect_errors_callback
 	config.user_data = &ctx
 
-	rows_processed, ok := cisv.parse_csv_stream(config, test_file)
+	rows_processed, ok := ocsv.parse_csv_stream(config, test_file)
 
 	testing.expect(t, !ok, "Should fail on unterminated quote")
 	testing.expect(t, len(ctx.errors) > 0, "Should have error")
-	testing.expect_value(t, ctx.errors[0].code, cisv.Parse_Error.Unterminated_Quote)
+	testing.expect_value(t, ctx.errors[0].code, ocsv.Parse_Error.Unterminated_Quote)
 }
 
 @(test)
@@ -303,11 +303,11 @@ test_streaming_relaxed_mode :: proc(t: ^testing.T) {
 	ctx := Test_Context{}
 	defer destroy_test_context(&ctx)
 
-	config := cisv.default_streaming_config(collect_rows_callback)
+	config := ocsv.default_streaming_config(collect_rows_callback)
 	config.parser_config.relaxed = true
 	config.user_data = &ctx
 
-	rows_processed, ok := cisv.parse_csv_stream(config, test_file)
+	rows_processed, ok := ocsv.parse_csv_stream(config, test_file)
 
 	testing.expect(t, ok, "Should succeed in relaxed mode")
 	testing.expect_value(t, rows_processed, 3)
@@ -324,11 +324,11 @@ test_streaming_custom_delimiter :: proc(t: ^testing.T) {
 	ctx := Test_Context{}
 	defer destroy_test_context(&ctx)
 
-	config := cisv.default_streaming_config(collect_rows_callback)
+	config := ocsv.default_streaming_config(collect_rows_callback)
 	config.parser_config.delimiter = '\t'
 	config.user_data = &ctx
 
-	rows_processed, ok := cisv.parse_csv_stream(config, test_file)
+	rows_processed, ok := ocsv.parse_csv_stream(config, test_file)
 
 	testing.expect(t, ok, "Should parse TSV")
 	testing.expect_value(t, rows_processed, 3)
@@ -339,9 +339,9 @@ test_streaming_custom_delimiter :: proc(t: ^testing.T) {
 // Schema validation streaming tests
 
 Typed_Row_Context :: struct {
-	typed_rows:     [dynamic][]cisv.Typed_Value,
+	typed_rows:     [dynamic][]ocsv.Typed_Value,
 	row_count:      int,
-	validation_errors: [dynamic]cisv.Validation_Error,
+	validation_errors: [dynamic]ocsv.Validation_Error,
 }
 
 destroy_typed_context :: proc(ctx: ^Typed_Row_Context) {
@@ -353,15 +353,15 @@ destroy_typed_context :: proc(ctx: ^Typed_Row_Context) {
 }
 
 schema_callback :: proc(
-	typed_row: []cisv.Typed_Value,
+	typed_row: []ocsv.Typed_Value,
 	row_num: int,
-	validation_result: ^cisv.Validation_Result,
+	validation_result: ^ocsv.Validation_Result,
 	user_data: rawptr,
 ) -> bool {
 	ctx := cast(^Typed_Row_Context)user_data
 
 	// Copy typed row
-	row_copy := make([]cisv.Typed_Value, len(typed_row))
+	row_copy := make([]ocsv.Typed_Value, len(typed_row))
 	copy(row_copy, typed_row)
 	append(&ctx.typed_rows, row_copy)
 	ctx.row_count += 1
@@ -383,7 +383,7 @@ test_streaming_with_schema :: proc(t: ^testing.T) {
 	defer os.remove(test_file)
 
 	// Create schema
-	schema := cisv.schema_create([]cisv.Column_Schema{
+	schema := ocsv.schema_create([]ocsv.Column_Schema{
 		{name = "name", col_type = .String, required = true},
 		{name = "age", col_type = .Int, required = true, min_value = 0, max_value = 150},
 		{name = "price", col_type = .Float, required = true, min_value = 0.0},
@@ -392,12 +392,12 @@ test_streaming_with_schema :: proc(t: ^testing.T) {
 	ctx := Typed_Row_Context{}
 	defer destroy_typed_context(&ctx)
 
-	config := cisv.default_streaming_config(nil)
+	config := ocsv.default_streaming_config(nil)
 	config.schema = &schema
 	config.schema_callback = schema_callback
 	config.user_data = &ctx
 
-	rows_processed, ok := cisv.parse_csv_stream(config, test_file)
+	rows_processed, ok := ocsv.parse_csv_stream(config, test_file)
 
 	testing.expect(t, ok, "Should parse with schema")
 	testing.expect_value(t, rows_processed, 3)  // Header + 2 data rows
@@ -417,7 +417,7 @@ test_streaming_schema_validation_errors :: proc(t: ^testing.T) {
 	os.write_entire_file(test_file, transmute([]byte)csv_data)
 	defer os.remove(test_file)
 
-	schema := cisv.schema_create([]cisv.Column_Schema{
+	schema := ocsv.schema_create([]ocsv.Column_Schema{
 		{name = "name", col_type = .String, required = true},
 		{name = "age", col_type = .Int, required = true, min_value = 0, max_value = 150},
 		{name = "price", col_type = .Float, required = true, min_value = 0.0},
@@ -427,12 +427,12 @@ test_streaming_schema_validation_errors :: proc(t: ^testing.T) {
 	ctx := Test_Context{}
 	defer destroy_test_context(&ctx)
 
-	config := cisv.default_streaming_config(collect_rows_callback)
+	config := ocsv.default_streaming_config(collect_rows_callback)
 	config.schema = &schema
 	config.error_callback = collect_errors_callback
 	config.user_data = &ctx
 
-	rows_processed, ok := cisv.parse_csv_stream(config, test_file)
+	rows_processed, ok := ocsv.parse_csv_stream(config, test_file)
 
 	testing.expect(t, ok, "Should complete parsing")
 	testing.expect(t, len(ctx.errors) > 0, "Should have validation errors")
@@ -462,16 +462,16 @@ test_streaming_field_too_large :: proc(t: ^testing.T) {
 	ctx := Test_Context{}
 	defer destroy_test_context(&ctx)
 
-	config := cisv.default_streaming_config(collect_rows_callback)
+	config := ocsv.default_streaming_config(collect_rows_callback)
 	config.max_field_size = 1000  // 1KB limit
 	config.error_callback = collect_errors_callback
 	config.user_data = &ctx
 
-	rows_processed, ok := cisv.parse_csv_stream(config, test_file)
+	rows_processed, ok := ocsv.parse_csv_stream(config, test_file)
 
 	testing.expect(t, !ok, "Should fail on large field")
 	testing.expect(t, len(ctx.errors) > 0, "Should have error")
-	testing.expect_value(t, ctx.errors[0].code, cisv.Parse_Error.Max_Field_Size_Exceeded)
+	testing.expect_value(t, ctx.errors[0].code, ocsv.Parse_Error.Max_Field_Size_Exceeded)
 }
 
 @(test)
@@ -479,15 +479,15 @@ test_streaming_file_not_found :: proc(t: ^testing.T) {
 	ctx := Test_Context{}
 	defer destroy_test_context(&ctx)
 
-	config := cisv.default_streaming_config(collect_rows_callback)
+	config := ocsv.default_streaming_config(collect_rows_callback)
 	config.error_callback = collect_errors_callback
 	config.user_data = &ctx
 
-	rows_processed, ok := cisv.parse_csv_stream(config, "nonexistent_file.csv")
+	rows_processed, ok := ocsv.parse_csv_stream(config, "nonexistent_file.csv")
 
 	testing.expect(t, !ok, "Should fail on missing file")
 	testing.expect(t, len(ctx.errors) > 0, "Should have error")
-	testing.expect_value(t, ctx.errors[0].code, cisv.Parse_Error.File_Not_Found)
+	testing.expect_value(t, ctx.errors[0].code, ocsv.Parse_Error.File_Not_Found)
 }
 
 @(test)
@@ -504,11 +504,11 @@ Bob,"Short"
 	ctx := Test_Context{}
 	defer destroy_test_context(&ctx)
 
-	config := cisv.default_streaming_config(collect_rows_callback)
+	config := ocsv.default_streaming_config(collect_rows_callback)
 	config.chunk_size = 32  // Very small chunks
 	config.user_data = &ctx
 
-	rows_processed, ok := cisv.parse_csv_stream(config, test_file)
+	rows_processed, ok := ocsv.parse_csv_stream(config, test_file)
 
 	testing.expect(t, ok, "Should handle chunk boundaries")
 	testing.expect_value(t, rows_processed, 3)
@@ -542,10 +542,10 @@ test_streaming_performance_1k_rows :: proc(t: ^testing.T) {
 		return true
 	}
 
-	config := cisv.default_streaming_config(count_callback)
+	config := ocsv.default_streaming_config(count_callback)
 	config.user_data = &row_counter
 
-	rows_processed, ok := cisv.parse_csv_stream(config, test_file)
+	rows_processed, ok := ocsv.parse_csv_stream(config, test_file)
 
 	testing.expect(t, ok, "Should parse 1k rows")
 	testing.expect_value(t, rows_processed, 1001)

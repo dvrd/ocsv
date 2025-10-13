@@ -4,7 +4,7 @@ import "core:testing"
 import "core:fmt"
 import "core:math/rand"
 import "core:strings"
-import cisv "../src"
+import ocsv "../src"
 
 // ============================================================================
 // Property-Based Testing (Fuzzing)
@@ -124,11 +124,11 @@ test_fuzz_no_crash :: proc(t: ^testing.T) {
         csv_data := generate_random_csv(&gen)
         defer delete(csv_data)
 
-        parser := cisv.parser_create()
-        defer cisv.parser_destroy(parser)
+        parser := ocsv.parser_create()
+        defer ocsv.parser_destroy(parser)
 
         // Should not crash, regardless of result
-        _ = cisv.parse_csv(parser, csv_data)
+        _ = ocsv.parse_csv(parser, csv_data)
     }
 
     testing.expect(t, true, "Fuzzing completed without crashes")
@@ -143,10 +143,10 @@ test_fuzz_valid_row_count :: proc(t: ^testing.T) {
         csv_data := generate_random_csv(&gen)
         defer delete(csv_data)
 
-        parser := cisv.parser_create()
-        defer cisv.parser_destroy(parser)
+        parser := ocsv.parser_create()
+        defer ocsv.parser_destroy(parser)
 
-        ok := cisv.parse_csv(parser, csv_data)
+        ok := ocsv.parse_csv(parser, csv_data)
         if ok {
             testing.expect(t, len(parser.all_rows) > 0, "Successful parse should have rows")
         }
@@ -162,14 +162,14 @@ test_fuzz_deterministic :: proc(t: ^testing.T) {
         csv_data := generate_random_csv(&gen)
         defer delete(csv_data)
 
-        parser1 := cisv.parser_create()
-        defer cisv.parser_destroy(parser1)
+        parser1 := ocsv.parser_create()
+        defer ocsv.parser_destroy(parser1)
 
-        parser2 := cisv.parser_create()
-        defer cisv.parser_destroy(parser2)
+        parser2 := ocsv.parser_create()
+        defer ocsv.parser_destroy(parser2)
 
-        ok1 := cisv.parse_csv(parser1, csv_data)
-        ok2 := cisv.parse_csv(parser2, csv_data)
+        ok1 := ocsv.parse_csv(parser1, csv_data)
+        ok2 := ocsv.parse_csv(parser2, csv_data)
 
         testing.expect_value(t, ok1, ok2)
         if ok1 && ok2 {
@@ -191,10 +191,10 @@ test_fuzz_empty_variations :: proc(t: ^testing.T) {
     }
 
     for test_case in test_cases {
-        parser := cisv.parser_create()
-        defer cisv.parser_destroy(parser)
+        parser := ocsv.parser_create()
+        defer ocsv.parser_destroy(parser)
 
-        ok := cisv.parse_csv(parser, test_case)
+        ok := ocsv.parse_csv(parser, test_case)
         testing.expect(t, ok, fmt.tprintf("Empty variation should parse: %q", test_case))
     }
 }
@@ -240,11 +240,11 @@ test_fuzz_malicious_input :: proc(t: ^testing.T) {
     }
 
     for malicious_case, idx in malicious_cases {
-        parser := cisv.parser_create()
-        defer cisv.parser_destroy(parser)
+        parser := ocsv.parser_create()
+        defer ocsv.parser_destroy(parser)
 
         // Should not crash (may or may not parse successfully)
-        _ = cisv.parse_csv(parser, malicious_case)
+        _ = ocsv.parse_csv(parser, malicious_case)
 
         testing.expect(t, true, fmt.tprintf("Malicious case %d completed", idx))
     }

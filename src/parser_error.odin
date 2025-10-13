@@ -1,4 +1,4 @@
-package cisv
+package ocsv
 
 import "core:strings"
 import "core:fmt"

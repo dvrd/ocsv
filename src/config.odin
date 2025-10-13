@@ -1,4 +1,4 @@
-package cisv
+package ocsv
 
 // Config contains all parser configuration options
 Config :: struct {

@@ -1,4 +1,4 @@
-package cisv
+package ocsv
 
 // SIMD-optimized CSV parser
 // This provides 20-30% performance improvement over the standard parser
