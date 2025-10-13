@@ -56,10 +56,42 @@ See [ARCHITECTURE_OVERVIEW.md](docs/ARCHITECTURE_OVERVIEW.md) for technical deta
 
 ## Quick Start
 
-### Installation
+### npm Installation (Recommended)
+
+Install OCSV as an npm package for easy integration with your Bun projects:
 
 ```bash
-git clone https://github.com/yourusername/ocsv.git
+# Using Bun
+bun add ocsv
+
+# Using npm (if you have Node.js support)
+npm install ocsv
+```
+
+Then use it in your project:
+
+```typescript
+import { parseCSV } from 'ocsv';
+
+// Parse CSV string
+const result = parseCSV('name,age\nJohn,30\nJane,25', { hasHeader: true });
+console.log(result.headers); // ['name', 'age']
+console.log(result.rows);    // [['John', '30'], ['Jane', '25']]
+
+// Parse CSV file
+import { parseCSVFile } from 'ocsv';
+const data = await parseCSVFile('./data.csv', { hasHeader: true });
+console.log(`Parsed ${data.rowCount} rows`);
+```
+
+See the [API Examples](#bun-api-examples) section below for more usage patterns.
+
+### Manual Installation (Development)
+
+For building from source or contributing:
+
+```bash
+git clone https://github.com/dvrd/ocsv.git
 cd ocsv
 ```
 
@@ -114,41 +146,80 @@ main :: proc() {
 }
 ```
 
-### Basic Usage (Bun/TypeScript)
+### Bun API Examples
+
+#### Basic Parsing
 
 ```typescript
-import { dlopen, FFIType, suffix } from "bun:ffi";
+import { parseCSV } from 'ocsv';
 
-// Load the library
-const lib = dlopen(`./libcsv.${suffix}`, {
-  parser_create: { returns: FFIType.ptr },
-  parser_destroy: { args: [FFIType.ptr] },
-  parse_csv: { args: [FFIType.ptr, FFIType.cstring], returns: FFIType.bool },
-  get_row_count: { args: [FFIType.ptr], returns: FFIType.i32 },
-  get_field_count: { args: [FFIType.ptr, FFIType.i32], returns: FFIType.i32 },
-  get_field: { args: [FFIType.ptr, FFIType.i32, FFIType.i32], returns: FFIType.cstring },
+// Parse CSV with headers
+const result = parseCSV('name,age,city\nAlice,30,NYC\nBob,25,SF', {
+  hasHeader: true
 });
 
-// Parse CSV
-const parser = lib.symbols.parser_create();
-const csvData = Buffer.from("name,age\nAlice,30\nBob,25\n");
-const success = lib.symbols.parse_csv(parser, csvData);
+console.log(result.headers); // ['name', 'age', 'city']
+console.log(result.rows);    // [['Alice', '30', 'NYC'], ['Bob', '25', 'SF']]
+console.log(result.rowCount); // 2
+```
 
-if (success) {
-  const rowCount = lib.symbols.get_row_count(parser);
-  console.log(`Parsed ${rowCount} rows`);
+#### Parse from File
 
-  for (let i = 0; i < rowCount; i++) {
-    const fieldCount = lib.symbols.get_field_count(parser, i);
-    for (let j = 0; j < fieldCount; j++) {
-      const field = lib.symbols.get_field(parser, i, j);
-      console.log(`Row ${i}, Field ${j}: ${field}`);
-    }
-  }
+```typescript
+import { parseCSVFile } from 'ocsv';
+
+// Parse CSV file with headers
+const data = await parseCSVFile('./sales.csv', {
+  hasHeader: true,
+  delimiter: ',',
+});
+
+console.log(`Parsed ${data.rowCount} rows`);
+console.log(`Columns: ${data.headers.join(', ')}`);
+
+// Process rows
+for (const row of data.rows) {
+  console.log(row);
 }
+```
 
-// Clean up
-lib.symbols.parser_destroy(parser);
+#### Custom Configuration
+
+```typescript
+import { parseCSV } from 'ocsv';
+
+// Parse TSV (tab-separated)
+const tsvData = parseCSV('col1\tcol2\trow1\tdata', {
+  delimiter: '\t',
+  hasHeader: true,
+});
+
+// Parse with semicolon delimiter (European CSV)
+const europeanData = parseCSV('name;age;city\nJohn;30;Paris', {
+  delimiter: ';',
+  hasHeader: true,
+});
+
+// Relaxed mode (allows some RFC violations)
+const relaxedData = parseCSV('messy,csv,"data', {
+  relaxed: true,
+});
+```
+
+#### Manual Parser Management
+
+For more control, use the `Parser` class directly:
+
+```typescript
+import { Parser } from 'ocsv';
+
+const parser = new Parser();
+try {
+  const result = parser.parse('a,b,c\n1,2,3');
+  console.log(result.rows);
+} finally {
+  parser.destroy(); // Important: free memory
+}
 ```
 
 ## Configuration
