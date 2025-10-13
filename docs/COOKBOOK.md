@@ -1,7 +1,7 @@
 # OCSV Cookbook - Common Usage Patterns
 
-**Document Version:** 1.0
-**Last Updated:** 2025-10-12
+**Document Version:** 2.0
+**Last Updated:** 2025-10-13
 **Author:** Dan Castrillo
 
 ---
@@ -18,8 +18,9 @@
 8. [Working with Quoted Fields](#working-with-quoted-fields)
 9. [Custom Configuration](#custom-configuration)
 10. [Performance Optimization](#performance-optimization)
-11. [Bun FFI Integration](#bun-ffi-integration)
-12. [Common Patterns](#common-patterns)
+11. [Parallel Processing (PRP-10)](#parallel-processing-prp-10)
+12. [Bun FFI Integration](#bun-ffi-integration)
+13. [Common Patterns](#common-patterns)
 
 ---
 
@@ -588,6 +589,292 @@ main :: proc() {
 
 ---
 
+## Parallel Processing (PRP-10)
+
+### Parse Large File in Parallel
+
+**Recommended for files ≥10 MB**
+
+```odin
+package main
+
+import "core:fmt"
+import "core:os"
+import "core:time"
+import ocsv "src"
+
+main :: proc() {
+    // Read large CSV file
+    data, ok := os.read_entire_file("large_data.csv")
+    if !ok {
+        fmt.eprintln("Failed to read file")
+        return
+    }
+    defer delete(data)
+
+    fmt.printfln("File size: %.2f MB", f64(len(data)) / (1024.0 * 1024.0))
+
+    // Parse in parallel (auto configuration)
+    start := time.now()
+    parser, parse_ok := ocsv.parse_parallel(string(data))
+    elapsed := time.since(start)
+    defer ocsv.parser_destroy(parser)
+
+    if !parse_ok {
+        fmt.eprintln("Parse failed")
+        return
+    }
+
+    throughput := f64(len(data)) / (1024.0 * 1024.0) / time.duration_seconds(elapsed)
+
+    fmt.printfln("Rows: %d", len(parser.all_rows))
+    fmt.printfln("Time: %v", elapsed)
+    fmt.printfln("Throughput: %.2f MB/s", throughput)
+}
+```
+
+### Custom Thread Configuration
+
+```odin
+// Use specific number of threads
+config := ocsv.Parallel_Config{
+    num_threads = 8,  // Force 8 threads
+}
+
+parser, ok := ocsv.parse_parallel(csv_data, config)
+defer ocsv.parser_destroy(parser)
+```
+
+### Custom File Size Threshold
+
+```odin
+// Use parallel for files ≥5 MB (instead of default 10 MB)
+config := ocsv.Parallel_Config{
+    min_file_size = 5 * 1024 * 1024,  // 5 MB
+}
+
+parser, ok := ocsv.parse_parallel(csv_data, config)
+defer ocsv.parser_destroy(parser)
+```
+
+### Determine Optimal Thread Count
+
+```odin
+package main
+
+import "core:fmt"
+import "core:os"
+import ocsv "src"
+
+main :: proc() {
+    data, ok := os.read_entire_file("data.csv")
+    if !ok {
+        fmt.eprintln("Failed to read file")
+        return
+    }
+    defer delete(data)
+
+    // Get optimal thread count for this file size
+    optimal_threads := ocsv.get_optimal_thread_count(len(data))
+
+    fmt.printfln("File size: %.2f MB", f64(len(data)) / (1024.0 * 1024.0))
+    fmt.printfln("Optimal threads: %d", optimal_threads)
+
+    if optimal_threads == 1 {
+        // File too small, use sequential
+        fmt.println("Using sequential parsing")
+        parser := ocsv.parser_create()
+        defer ocsv.parser_destroy(parser)
+        ocsv.parse_csv(parser, string(data))
+    } else {
+        // Use parallel
+        fmt.printfln("Using parallel parsing with %d threads", optimal_threads)
+        config := ocsv.Parallel_Config{num_threads = optimal_threads}
+        parser, ok := ocsv.parse_parallel(string(data), config)
+        defer ocsv.parser_destroy(parser)
+    }
+}
+```
+
+### Compare Sequential vs Parallel
+
+```odin
+package main
+
+import "core:fmt"
+import "core:os"
+import "core:time"
+import ocsv "src"
+
+compare_performance :: proc(filename: string) {
+    data, ok := os.read_entire_file(filename)
+    if !ok {
+        fmt.eprintln("Failed to read file")
+        return
+    }
+    defer delete(data)
+
+    file_size_mb := f64(len(data)) / (1024.0 * 1024.0)
+    fmt.printfln("File: %s (%.2f MB)", filename, file_size_mb)
+    fmt.println()
+
+    // Sequential parsing
+    {
+        parser := ocsv.parser_create()
+        defer ocsv.parser_destroy(parser)
+
+        start := time.now()
+        ok := ocsv.parse_csv(parser, string(data))
+        elapsed := time.since(start)
+
+        if ok {
+            throughput := file_size_mb / time.duration_seconds(elapsed)
+            fmt.println("Sequential:")
+            fmt.printfln("  Time: %v", elapsed)
+            fmt.printfln("  Rows: %d", len(parser.all_rows))
+            fmt.printfln("  Throughput: %.2f MB/s", throughput)
+            fmt.println()
+        }
+    }
+
+    // Parallel parsing (4 threads)
+    {
+        config := ocsv.Parallel_Config{num_threads = 4, min_file_size = 0}
+        start := time.now()
+        parser, ok := ocsv.parse_parallel(string(data), config)
+        elapsed := time.since(start)
+        defer ocsv.parser_destroy(parser)
+
+        if ok {
+            throughput := file_size_mb / time.duration_seconds(elapsed)
+            fmt.println("Parallel (4 threads):")
+            fmt.printfln("  Time: %v", elapsed)
+            fmt.printfln("  Rows: %d", len(parser.all_rows))
+            fmt.printfln("  Throughput: %.2f MB/s", throughput)
+        }
+    }
+}
+
+main :: proc() {
+    compare_performance("large_data.csv")
+}
+```
+
+### Parallel Processing with Transform Pipeline
+
+```odin
+package main
+
+import "core:fmt"
+import ocsv "src"
+
+main :: proc() {
+    // Parse large file in parallel
+    data := get_large_csv_data()
+    parser, ok := ocsv.parse_parallel(data)
+    defer ocsv.parser_destroy(parser)
+
+    if !ok {
+        fmt.eprintln("Parse failed")
+        return
+    }
+
+    // Apply transforms to parsed data
+    registry := ocsv.registry_create()
+    defer ocsv.registry_destroy(registry)
+
+    pipeline := ocsv.pipeline_create()
+    defer ocsv.pipeline_destroy(pipeline)
+
+    // Transform column 0: trim → uppercase
+    ocsv.pipeline_add_step(pipeline, ocsv.TRANSFORM_TRIM, 0)
+    ocsv.pipeline_add_step(pipeline, ocsv.TRANSFORM_UPPERCASE, 0)
+
+    // Transform column 1: trim → parse to float
+    ocsv.pipeline_add_step(pipeline, ocsv.TRANSFORM_TRIM, 1)
+    ocsv.pipeline_add_step(pipeline, ocsv.TRANSFORM_PARSE_FLOAT, 1)
+
+    // Apply pipeline to all rows
+    ocsv.pipeline_apply_to_all(pipeline, registry, parser.all_rows[:])
+
+    fmt.printfln("Processed %d rows", len(parser.all_rows))
+}
+
+get_large_csv_data :: proc() -> string {
+    // Your large CSV data here
+    return "..."
+}
+```
+
+### Best Practices for Parallel Processing
+
+**When to Use Parallel:**
+```odin
+// ✅ Good: Files ≥10 MB
+data_size := len(csv_data)
+if data_size >= 10 * 1024 * 1024 {
+    parser, ok := ocsv.parse_parallel(csv_data)
+    // Will use parallel processing
+}
+
+// ✅ Good: Let OCSV decide automatically
+parser, ok := ocsv.parse_parallel(csv_data)
+// Automatic threshold detection
+```
+
+**When NOT to Use Parallel:**
+```odin
+// ❌ Bad: Small files (< 10 MB)
+// Threading overhead dominates, slower than sequential
+small_data := "name,age\nAlice,30\n"
+parser, ok := ocsv.parse_parallel(small_data)
+// Will automatically fall back to sequential
+
+// ✅ Good: Use sequential directly for small files
+parser := ocsv.parser_create()
+defer ocsv.parser_destroy(parser)
+ocsv.parse_csv(parser, small_data)
+```
+
+**Memory Considerations:**
+```odin
+// Parallel parsing uses ~2-4x memory during merge
+// For 50 MB file: expect ~100-200 MB peak usage
+
+// If memory is constrained, use streaming instead:
+streaming_parser := ocsv.streaming_parser_create()
+defer ocsv.streaming_parser_destroy(streaming_parser)
+
+// Process in chunks (memory-efficient)
+for chunk in read_chunks("large_file.csv") {
+    ocsv.streaming_parse_chunk(streaming_parser, chunk)
+    rows := ocsv.streaming_get_complete_rows(streaming_parser)
+    // Process rows
+    ocsv.streaming_clear_rows(streaming_parser)
+}
+```
+
+### Performance Expectations
+
+Based on PRP-10 benchmarks (Apple Silicon M-series):
+
+```
+File Size | Sequential | Parallel (4t) | Speedup
+----------|------------|---------------|--------
+15 KB     | 137 µs     | 140 µs        | 0.98x (auto fallback)
+3.5 MB    | 26.4 ms    | 26.6 ms       | 0.99x (auto fallback)
+14 MB     | 329 ms     | 175 ms        | 1.87x ✨
+29 MB     | 632 ms     | 492 ms        | 1.29x ✨
+```
+
+**Key Observations:**
+- Files < 10 MB: Automatic sequential fallback (zero overhead)
+- Files 10-20 MB: **1.5-2x speedup** with 4 threads
+- Files > 20 MB: **1.3-1.8x speedup** with 4 threads
+- Throughput increases from ~40 MB/s to ~60-80 MB/s
+
+---
+
 ## Bun FFI Integration
 
 ### Basic Bun FFI Usage
@@ -874,6 +1161,6 @@ main :: proc() {
 
 ---
 
-**Document Version:** 1.0
-**Last Updated:** 2025-10-12
+**Document Version:** 2.0
+**Last Updated:** 2025-10-13
 **Author:** Dan Castrillo

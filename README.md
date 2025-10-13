@@ -9,7 +9,7 @@ A high-performance, RFC 4180 compliant CSV parser written in Odin with Bun FFI s
 
 ## Status
 
-✅ **Phase 3 Progress** - Streaming API implemented
+⚠️ **Phase 4 Progress** - Parallel processing implemented (alpha)
 
 - ✅ PRP-00: Foundation (basic parsing, FFI bindings)
 - ✅ PRP-01: RFC 4180 Edge Cases (full compliance)
@@ -20,8 +20,10 @@ A high-performance, RFC 4180 compliant CSV parser written in Odin with Bun FFI s
 - ✅ PRP-06: Error Handling & Recovery (11 error types, 4 recovery strategies)
 - ✅ PRP-07: Schema Validation (6 types, 9 rules, type conversion)
 - ✅ PRP-08: Streaming API (memory-efficient, chunk-based processing)
+- ✅ PRP-09: Advanced Transformations (12 built-in transforms, pipelines, plugin system)
+- ⚠️ PRP-10: Parallel Processing (multi-threaded parsing, functional but needs optimization)
 
-**Production-ready with streaming support.** 112+ tests passing with zero memory leaks.
+**Production-ready core with experimental parallel processing.** 152+ tests passing with zero memory leaks.
 
 ## Features
 
@@ -32,11 +34,13 @@ A high-performance, RFC 4180 compliant CSV parser written in Odin with Bun FFI s
 - 🌍 **UTF-8 Support** - Correct handling of international characters
 - 🔧 **Flexible Configuration** - Custom delimiters, quotes, comments
 - 📊 **Large Files** - Successfully tested with 50MB+ datasets
-- 🧪 **Well Tested** - 112+ tests with 95% code coverage
+- 🧪 **Well Tested** - 152+ tests with 95% code coverage
 - 📦 **Bun Native** - Direct FFI integration with Bun runtime
 - 🛡️ **Error Handling** - Detailed error messages with line/column info, 4 recovery strategies
 - 🎯 **Schema Validation** - Type checking, constraints, custom validators, type conversion
 - 🌊 **Streaming API** - Memory-efficient chunk-based processing for large files
+- 🔄 **Transform System** - 12 built-in transforms, pipelines, and plugin architecture
+- ⚡ **Parallel Processing** - Multi-threaded parsing (experimental, needs optimization)
 - 💻 **Cross-Platform** - macOS, Linux, Windows support with automated builds
 
 ## Why Odin + Bun?
@@ -219,7 +223,7 @@ See [docs/RFC4180.md](docs/RFC4180.md) for detailed compliance guide.
 
 ## Testing
 
-**112+ tests, 99%+ pass rate, 0 memory leaks, ~95% code coverage**
+**152+ tests, 99%+ pass rate, 0 memory leaks, ~95% code coverage**
 
 ```bash
 # Run all tests
@@ -244,6 +248,8 @@ odin test tests -all-packages -debug
 - **Error Handling Tests** (20 tests) - Error detection, recovery strategies, validation
 - **Schema Validation Tests** (19 tests) - Type checking, constraints, conversion
 - **Streaming API Tests** (16 tests) - Chunk boundaries, large files, schema integration
+- **Transform Tests** (24 tests) - Built-in transforms, pipelines, custom transforms
+- **Parallel Processing Tests** (16 tests) - Multi-threading, chunk splitting, result merging
 
 ## Documentation
 
@@ -264,6 +270,8 @@ odin test tests -all-packages -debug
 - **[PRP-06 Results](docs/PRP-06-RESULTS.md)** - Error handling & recovery
 - **[PRP-07 Results](docs/PRP-07-RESULTS.md)** - Schema validation & type system
 - **[PRP-08 Results](docs/PRP-08-RESULTS.md)** - Streaming API implementation
+- **[PRP-09 Results](docs/PRP-09-RESULTS.md)** - Advanced transformations
+- **[PRP-10 Results](docs/PRP-10-RESULTS.md)** - Parallel processing (alpha)
 
 ## Project Structure
 
@@ -275,6 +283,8 @@ ocsv/
 │   ├── parser_simd.odin  # SIMD-optimized parser (PRP-05)
 │   ├── parser_error.odin # Error-aware parser (PRP-06)
 │   ├── streaming.odin    # Streaming API (PRP-08)
+│   ├── parallel.odin     # Parallel processing (PRP-10)
+│   ├── transform.odin    # Transform system (PRP-09)
 │   ├── simd.odin         # SIMD search functions (PRP-05)
 │   ├── error.odin        # Error handling system (PRP-06)
 │   ├── schema.odin       # Schema validation & type system (PRP-07)
@@ -290,7 +300,9 @@ ocsv/
 │   ├── test_simd.odin          # SIMD tests (12 tests, PRP-05)
 │   ├── test_error_handling.odin # Error handling tests (20 tests, PRP-06)
 │   ├── test_schema.odin        # Schema validation tests (19 tests, PRP-07)
-│   └── test_streaming.odin     # Streaming API tests (16 tests, PRP-08)
+│   ├── test_streaming.odin     # Streaming API tests (16 tests, PRP-08)
+│   ├── test_transform.odin     # Transform tests (24 tests, PRP-09)
+│   └── test_parallel.odin      # Parallel processing tests (16 tests, PRP-10)
 ├── docs/
 │   ├── API.md                  # API reference (PRP-03)
 │   ├── COOKBOOK.md             # Usage patterns (PRP-03)
@@ -325,11 +337,14 @@ ocsv/
 - ✅ PRP-04: Windows/Linux Support (cross-platform builds, CI/CD)
 - ✅ PRP-07: Schema Validation (6 types, 9 rules, type conversion)
 
-**Phase 3 (In Progress): Streaming & Advanced Validation**
+**Phase 3 (Complete): Streaming & Transform System** ✅
 - ✅ PRP-08: Streaming API (memory-efficient chunk-based processing)
-- ⏳ PRP-09: Custom Parsers (plugin architecture)
-- ⏳ PRP-11: Enhanced Validation (regex, cross-field, async validators)
-- ⏳ PRP-10+: Performance monitoring, parallel processing, etc.
+- ✅ PRP-09: Advanced Transformations (12 built-in transforms, pipelines)
+
+**Phase 4 (In Progress): Advanced Features** ⚠️
+- ⚠️ PRP-10: Parallel Processing (multi-threaded parsing, functional, needs optimization)
+- ⏳ PRP-11: Plugin Architecture (custom parsers, validators)
+- ⏳ Performance monitoring, profiling tools, etc.
 
 See [docs/ACTION_PLAN.md](docs/ACTION_PLAN.md) for complete roadmap.
 
@@ -351,26 +366,11 @@ Contributions are welcome! Please read [docs/CONTRIBUTING.md](docs/CONTRIBUTING.
 4. Ensure zero memory leaks
 5. Submit a pull request
 
-**Current Priorities (PRP-03):**
-- API reference documentation
-- Usage cookbook with examples
-- Performance tuning guide
-- Bun FFI integration examples
-
-## Comparison with C Version (CISV)
-
-| Feature | CISV (C) | OCSV (Odin) |
-|---------|----------|-------------|
-| Performance | 71-104 MB/s | 66.67 MB/s (93%) |
-| Build System | Makefile + node-gyp | `odin build` |
-| Memory Safety | Manual | Explicit + defer |
-| Error Handling | Magic numbers | Enums + multiple returns |
-| Testing | External framework | Built-in (core:testing) |
-| Test Coverage | Unknown | 95% (58 tests) |
-| Memory Leaks | Unknown | 0 (tracked) |
-| Platform Support | Linux/Unix x86_64 | macOS, Linux, Windows |
-| Timeline | 24 weeks (estimated) | 1 session (3 hours per PRP) |
-| Development Speed | Baseline | **112x faster** |
+**Current Priorities (PRP-09):**
+- Transform system enhancements
+- Additional transform types (currency, regex)
+- Performance monitoring
+- Advanced validation features
 
 ## License
 
@@ -399,6 +399,6 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 **Built with ❤️ using Odin + Bun**
 
-**Version:** 0.8.0 (Phase 3: Streaming API)
+**Version:** 0.10.0 (Phase 4: Parallel Processing - Alpha)
 
 **Last Updated:** 2025-10-13

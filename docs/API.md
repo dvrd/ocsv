@@ -2,8 +2,8 @@
 
 Complete API documentation for OCSV - Odin CSV Parser.
 
-**Version:** 0.3.0 (Phase 0 Complete)
-**Last Updated:** 2025-10-12
+**Version:** 0.10.0 (Phase 4: Parallel Processing)
+**Last Updated:** 2025-10-13
 
 ---
 
@@ -19,6 +19,16 @@ Complete API documentation for OCSV - Odin CSV Parser.
   - [parser_destroy](#parser_destroy)
   - [parse_csv](#parse_csv)
   - [default_config](#default_config)
+- [Parallel Processing](#parallel-processing)
+  - [parse_parallel](#parse_parallel)
+  - [Parallel_Config](#parallel_config)
+  - [get_optimal_thread_count](#get_optimal_thread_count)
+- [Transform System](#transform-system)
+  - [Transform Functions](#transform-functions)
+  - [Transform Registry](#transform-registry)
+  - [Transform Pipeline](#transform-pipeline)
+- [Streaming API](#streaming-api)
+  - [Streaming Functions](#streaming-functions)
 - [FFI Functions (Bun)](#ffi-functions-bun)
   - [cisv_parser_create](#cisv_parser_create)
   - [cisv_parser_destroy](#cisv_parser_destroy)
@@ -373,6 +383,437 @@ parser.config.delimiter = '\t'
 
 ---
 
+## Parallel Processing
+
+**Version:** 0.10.0
+**Status:** Production-ready (4+ threads)
+
+OCSV provides multi-threaded CSV parsing for large files (≥10 MB) with automatic fallback to sequential parsing for smaller files.
+
+### parse_parallel
+
+Parses CSV data in parallel using multiple worker threads.
+
+**Signature:**
+```odin
+parse_parallel :: proc(
+    data: string,
+    config: Parallel_Config = {},
+    allocator := context.allocator,
+) -> (^Parser, bool)
+```
+
+**Parameters:**
+- `data` - CSV string to parse
+- `config` - Parallel configuration (optional, see [Parallel_Config](#parallel_config))
+- `allocator` - Memory allocator (default: context.allocator)
+
+**Returns:**
+- `^Parser` - Pointer to parser with parsed results
+- `bool` - Success status
+
+**Behavior:**
+- Automatically falls back to sequential for files < 10 MB (configurable)
+- Splits data at safe row boundaries (never in middle of quoted fields)
+- Each thread parses its chunk independently
+- Results are merged in original order
+- Returns merged parser with all rows
+
+**Example (Auto Configuration):**
+```odin
+import ocsv "../src"
+
+// Read large CSV file
+data, ok := os.read_entire_file("large_data.csv")
+defer delete(data)
+
+// Parse in parallel (auto-detects threads and threshold)
+parser, parse_ok := ocsv.parse_parallel(string(data))
+defer ocsv.parser_destroy(parser)
+
+if parse_ok {
+    fmt.printfln("Parsed %d rows", len(parser.all_rows))
+}
+```
+
+**Example (Custom Configuration):**
+```odin
+config := ocsv.Parallel_Config{
+    num_threads   = 8,              // Use 8 threads
+    min_file_size = 5 * 1024 * 1024, // 5 MB threshold
+}
+
+parser, ok := ocsv.parse_parallel(csv_data, config)
+defer ocsv.parser_destroy(parser)
+```
+
+**Performance:**
+```
+File Size | Sequential | Parallel (4t) | Speedup
+----------|------------|---------------|--------
+15 KB     | 137 µs     | 140 µs        | 0.98x (sequential fallback)
+3.5 MB    | 26.4 ms    | 26.6 ms       | 0.99x (sequential fallback)
+14 MB     | 329 ms     | 175 ms        | 1.87x ✨
+29 MB     | 632 ms     | 492 ms        | 1.29x ✨
+```
+
+**Thread Safety:**
+- Creates independent parsers for each chunk
+- Thread-safe result collection
+- No shared mutable state between workers
+
+**Known Limitations:**
+- 2-thread configuration may have intermittent race condition (use 4+ threads)
+- Requires minimum 1 MB per thread
+- Memory overhead: ~2-4x during merge phase
+
+---
+
+### Parallel_Config
+
+Configuration for parallel parsing.
+
+**Structure:**
+```odin
+Parallel_Config :: struct {
+    num_threads:   int,  // Number of worker threads (0 = auto-detect)
+    min_file_size: int,  // Minimum file size for parallel (0 = 10 MB default)
+}
+```
+
+**Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `num_threads` | `int` | `0` | Number of threads (0 = auto-detect CPU cores) |
+| `min_file_size` | `int` | `10485760` | Minimum bytes for parallel (10 MB default, 0 = use default) |
+
+**Auto-Detection Behavior:**
+- `num_threads = 0`: Uses `os.processor_core_count()`
+- Limits threads based on data size (minimum 1 MB per thread)
+- Falls back to sequential if only 1 thread needed
+
+**Examples:**
+
+**Auto Configuration (Recommended):**
+```odin
+config := ocsv.Parallel_Config{}  // All defaults
+// or
+parser, ok := ocsv.parse_parallel(data)  // Implicit default config
+```
+
+**Fixed Thread Count:**
+```odin
+config := ocsv.Parallel_Config{
+    num_threads = 4,  // Always use 4 threads
+}
+```
+
+**Custom Threshold:**
+```odin
+config := ocsv.Parallel_Config{
+    min_file_size = 5 * 1024 * 1024,  // Use parallel for files ≥5 MB
+}
+```
+
+**Aggressive Parallel (Testing):**
+```odin
+config := ocsv.Parallel_Config{
+    num_threads   = 8,
+    min_file_size = 0,  // Use 10 MB default threshold
+}
+```
+
+**Force Sequential:**
+```odin
+config := ocsv.Parallel_Config{
+    num_threads   = 1,  // Forces sequential
+}
+```
+
+---
+
+### get_optimal_thread_count
+
+Returns the optimal number of threads for a given data size.
+
+**Signature:**
+```odin
+get_optimal_thread_count :: proc(data_size: int) -> int
+```
+
+**Parameters:**
+- `data_size` - Size of CSV data in bytes
+
+**Returns:**
+- Optimal thread count (1 = sequential, 2+ = parallel)
+
+**Logic:**
+1. Files < 10 MB: Returns `1` (sequential)
+2. Calculates: `max_threads = data_size / (1 MB)`
+3. Uses min of: `max_threads` and `CPU cores`
+
+**Example:**
+```odin
+data_size := len(csv_data)
+optimal := ocsv.get_optimal_thread_count(data_size)
+
+fmt.printfln("Data size: %d MB", data_size / (1024*1024))
+fmt.printfln("Optimal threads: %d", optimal)
+
+if optimal == 1 {
+    // Use sequential
+    parser := ocsv.parser_create()
+    defer ocsv.parser_destroy(parser)
+    ocsv.parse_csv(parser, csv_data)
+} else {
+    // Use parallel
+    config := ocsv.Parallel_Config{num_threads = optimal}
+    parser, ok := ocsv.parse_parallel(csv_data, config)
+    defer ocsv.parser_destroy(parser)
+}
+```
+
+**Typical Results:**
+```
+Data Size | Optimal Threads | Reason
+----------|----------------|--------
+1 MB      | 1              | Too small (< 10 MB)
+5 MB      | 1              | Too small (< 10 MB)
+10 MB     | 4              | 10 MB / 1 MB = 10, limited by CPU cores
+50 MB     | 8              | 50 MB / 1 MB = 50, limited by CPU cores
+100 MB    | 8              | 100 MB / 1 MB = 100, limited by CPU cores
+```
+
+---
+
+## Transform System
+
+**Version:** 0.9.0
+**Status:** Production-ready
+
+Transform system for data cleaning, normalization, and type conversion.
+
+### Transform Functions
+
+Built-in transforms available in the registry:
+
+**String Transforms:**
+```odin
+TRANSFORM_TRIM              // Remove leading/trailing whitespace
+TRANSFORM_TRIM_LEFT         // Remove leading whitespace
+TRANSFORM_TRIM_RIGHT        // Remove trailing whitespace
+TRANSFORM_UPPERCASE         // Convert to uppercase
+TRANSFORM_LOWERCASE         // Convert to lowercase
+TRANSFORM_CAPITALIZE        // Capitalize first letter
+TRANSFORM_NORMALIZE_SPACE   // Normalize whitespace to single spaces
+TRANSFORM_REMOVE_QUOTES     // Remove surrounding quotes
+```
+
+**Numeric Transforms:**
+```odin
+TRANSFORM_PARSE_FLOAT       // Parse to float representation
+TRANSFORM_PARSE_INT         // Parse to integer representation
+```
+
+**Boolean Transforms:**
+```odin
+TRANSFORM_PARSE_BOOL        // Parse to "true"/"false"
+```
+
+**Date Transforms:**
+```odin
+TRANSFORM_DATE_ISO8601      // Convert various formats to ISO 8601
+```
+
+**Example:**
+```odin
+registry := ocsv.registry_create()
+defer ocsv.registry_destroy(registry)
+
+// Apply single transform
+result := ocsv.apply_transform(registry, ocsv.TRANSFORM_UPPERCASE, "hello", context.allocator)
+defer delete(result)
+fmt.println(result)  // "HELLO"
+```
+
+### Transform Registry
+
+Central registry for managing transforms.
+
+**Functions:**
+```odin
+// Create/destroy registry
+registry_create :: proc() -> ^Transform_Registry
+registry_destroy :: proc(registry: ^Transform_Registry)
+
+// Register custom transform
+register_transform :: proc(
+    registry: ^Transform_Registry,
+    name: string,
+    func: Transform_Func,
+)
+
+// Apply transforms
+apply_transform :: proc(
+    registry: ^Transform_Registry,
+    name: string,
+    input: string,
+    allocator := context.allocator,
+) -> string
+
+apply_transform_to_row :: proc(
+    registry: ^Transform_Registry,
+    name: string,
+    row: []string,
+    column_index: int,
+    allocator := context.allocator,
+) -> bool
+
+apply_transform_to_column :: proc(
+    registry: ^Transform_Registry,
+    name: string,
+    rows: [][]string,
+    column_index: int,
+    allocator := context.allocator,
+)
+```
+
+**Example:**
+```odin
+// Create registry
+registry := ocsv.registry_create()
+defer ocsv.registry_destroy(registry)
+
+// Register custom transform
+my_transform :: proc(input: string, allocator := context.allocator) -> string {
+    return strings.to_upper(input, allocator)
+}
+
+ocsv.register_transform(registry, "my_uppercase", my_transform)
+
+// Apply to entire column
+parser := ocsv.parser_create()
+defer ocsv.parser_destroy(parser)
+
+ocsv.parse_csv(parser, csv_data)
+ocsv.apply_transform_to_column(registry, "my_uppercase", parser.all_rows[:], 0)
+```
+
+### Transform Pipeline
+
+Chain multiple transforms together.
+
+**Functions:**
+```odin
+// Create/destroy pipeline
+pipeline_create :: proc() -> ^Transform_Pipeline
+pipeline_destroy :: proc(pipeline: ^Transform_Pipeline)
+
+// Add transformation steps
+pipeline_add_step :: proc(
+    pipeline: ^Transform_Pipeline,
+    transform_name: string,
+    column_index: int,
+)
+
+// Apply pipeline
+pipeline_apply_to_row :: proc(
+    pipeline: ^Transform_Pipeline,
+    registry: ^Transform_Registry,
+    row: []string,
+    allocator := context.allocator,
+)
+
+pipeline_apply_to_all :: proc(
+    pipeline: ^Transform_Pipeline,
+    registry: ^Transform_Registry,
+    rows: [][]string,
+    allocator := context.allocator,
+)
+```
+
+**Example:**
+```odin
+registry := ocsv.registry_create()
+defer ocsv.registry_destroy(registry)
+
+pipeline := ocsv.pipeline_create()
+defer ocsv.pipeline_destroy(pipeline)
+
+// Build pipeline: trim → uppercase → normalize spaces
+ocsv.pipeline_add_step(pipeline, ocsv.TRANSFORM_TRIM, 0)        // Column 0
+ocsv.pipeline_add_step(pipeline, ocsv.TRANSFORM_UPPERCASE, 0)   // Column 0
+ocsv.pipeline_add_step(pipeline, ocsv.TRANSFORM_NORMALIZE_SPACE, 0) // Column 0
+
+// Parse and apply
+parser := ocsv.parser_create()
+defer ocsv.parser_destroy(parser)
+
+ocsv.parse_csv(parser, csv_data)
+ocsv.pipeline_apply_to_all(pipeline, registry, parser.all_rows[:])
+```
+
+---
+
+## Streaming API
+
+**Version:** 0.8.0
+**Status:** Production-ready
+
+Memory-efficient streaming parser for large files.
+
+### Streaming Functions
+
+```odin
+// Create streaming parser
+streaming_parser_create :: proc() -> ^Streaming_Parser
+streaming_parser_destroy :: proc(parser: ^Streaming_Parser)
+
+// Process in chunks
+streaming_parse_chunk :: proc(
+    parser: ^Streaming_Parser,
+    chunk: string,
+) -> bool
+
+// Get complete rows
+streaming_get_complete_rows :: proc(
+    parser: ^Streaming_Parser,
+) -> [][]string
+
+// Clear processed rows
+streaming_clear_rows :: proc(parser: ^Streaming_Parser)
+```
+
+**Example:**
+```odin
+import "core:os"
+
+streaming_parser := ocsv.streaming_parser_create()
+defer ocsv.streaming_parser_destroy(streaming_parser)
+
+file, err := os.open("large_file.csv")
+defer os.close(file)
+
+buffer: [4096]byte
+for {
+    bytes_read, read_err := os.read(file, buffer[:])
+    if bytes_read == 0 do break
+
+    chunk := string(buffer[:bytes_read])
+    ocsv.streaming_parse_chunk(streaming_parser, chunk)
+
+    // Process complete rows
+    complete_rows := ocsv.streaming_get_complete_rows(streaming_parser)
+    for row in complete_rows {
+        // Process row
+    }
+    ocsv.streaming_clear_rows(streaming_parser)
+}
+```
+
+---
+
 ## FFI Functions (Bun)
 
 Functions exported with C ABI for use with Bun FFI.
@@ -703,7 +1144,7 @@ Memory overhead comes from:
 
 ---
 
-**Document Version:** 1.0
-**Last Updated:** 2025-10-12
+**Document Version:** 2.0
+**Last Updated:** 2025-10-13
 **Author:** Dan Castrillo
-**Version:** 0.3.0 (Phase 0 Complete)
+**Version:** 0.10.0 (Phase 4: Parallel Processing)

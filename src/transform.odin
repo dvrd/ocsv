@@ -6,6 +6,7 @@ package ocsv
 import "core:strings"
 import "core:strconv"
 import "core:time"
+import "core:unicode"
 import "core:unicode/utf8"
 import "core:mem"
 
@@ -38,7 +39,7 @@ TRANSFORM_DATE_ISO8601   :: "date_iso8601"
 registry_create :: proc(allocator := context.allocator) -> ^Transform_Registry {
     registry := new(Transform_Registry, allocator)
     registry.allocator = allocator
-    registry.transforms = make(map[string]Transform_Func, allocator)
+    registry.transforms = make(map[string]Transform_Func, 16, allocator)
 
     // Register built-in transforms
     register_builtin_transforms(registry)
@@ -126,10 +127,10 @@ transform_capitalize :: proc(field: string, allocator := context.allocator) -> s
     first := true
     for r in field {
         if first {
-            strings.write_rune(&builder, utf8.to_upper(r))
+            strings.write_rune(&builder, unicode.to_upper(r))
             first = false
         } else {
-            strings.write_rune(&builder, utf8.to_lower(r))
+            strings.write_rune(&builder, unicode.to_lower(r))
         }
     }
 
@@ -143,7 +144,7 @@ transform_normalize_space :: proc(field: string, allocator := context.allocator)
 
     prev_space := false
     for r in field {
-        is_space := utf8.is_white_space(r)
+        is_space := unicode.is_white_space(r)
         if is_space {
             if !prev_space {
                 strings.write_rune(&builder, ' ')
