@@ -35,11 +35,11 @@ import "core:fmt"
 import cisv "src"
 
 main :: proc() {
-    parser := cisv.parser_create()
-    defer cisv.parser_destroy(parser)
+    parser := ocsv.parser_create()
+    defer ocsv.parser_destroy(parser)
 
     csv_data := "name,age,city\nAlice,30,NYC\nBob,25,SF\n"
-    ok := cisv.parse_csv(parser, csv_data)
+    ok := ocsv.parse_csv(parser, csv_data)
 
     if !ok {
         fmt.eprintln("Failed to parse CSV")
@@ -85,10 +85,10 @@ main :: proc() {
     defer delete(data)
 
     // Parse
-    parser := cisv.parser_create()
-    defer cisv.parser_destroy(parser)
+    parser := ocsv.parser_create()
+    defer ocsv.parser_destroy(parser)
 
-    ok = cisv.parse_csv(parser, string(data))
+    ok = ocsv.parse_csv(parser, string(data))
     if !ok {
         fmt.eprintln("Failed to parse CSV")
         return
@@ -105,40 +105,40 @@ main :: proc() {
 ### TSV (Tab-Separated Values)
 
 ```odin
-parser := cisv.parser_create()
-defer cisv.parser_destroy(parser)
+parser := ocsv.parser_create()
+defer ocsv.parser_destroy(parser)
 
 // Set tab as delimiter
 parser.config.delimiter = '\t'
 
 tsv_data := "name\tage\tcity\nAlice\t30\tNYC\nBob\t25\tSF\n"
-ok := cisv.parse_csv(parser, tsv_data)
+ok := ocsv.parse_csv(parser, tsv_data)
 ```
 
 ### European CSV (Semicolon)
 
 ```odin
-parser := cisv.parser_create()
-defer cisv.parser_destroy(parser)
+parser := ocsv.parser_create()
+defer ocsv.parser_destroy(parser)
 
 // European format uses semicolon
 parser.config.delimiter = ';'
 
 csv_data := "name;age;city\nAlice;30;NYC\nBob;25;SF\n"
-ok := cisv.parse_csv(parser, csv_data)
+ok := ocsv.parse_csv(parser, csv_data)
 ```
 
 ### Pipe-Separated Values
 
 ```odin
-parser := cisv.parser_create()
-defer cisv.parser_destroy(parser)
+parser := ocsv.parser_create()
+defer ocsv.parser_destroy(parser)
 
 // Pipe delimiter
 parser.config.delimiter = '|'
 
 psv_data := "name|age|city\nAlice|30|NYC\nBob|25|SF\n"
-ok := cisv.parse_csv(parser, psv_data)
+ok := ocsv.parse_csv(parser, psv_data)
 ```
 
 ---
@@ -148,8 +148,8 @@ ok := cisv.parse_csv(parser, psv_data)
 ### Skip Comment Lines
 
 ```odin
-parser := cisv.parser_create()
-defer cisv.parser_destroy(parser)
+parser := ocsv.parser_create()
+defer ocsv.parser_destroy(parser)
 
 // Lines starting with # will be skipped
 parser.config.comment = '#'
@@ -162,15 +162,15 @@ Alice,30,NYC
 Bob,25,SF
 `
 
-ok := cisv.parse_csv(parser, csv_data)
+ok := ocsv.parse_csv(parser, csv_data)
 // Result: Only 3 rows (header + 2 data rows)
 ```
 
 ### Comments Inside Quoted Fields
 
 ```odin
-parser := cisv.parser_create()
-defer cisv.parser_destroy(parser)
+parser := ocsv.parser_create()
+defer ocsv.parser_destroy(parser)
 
 parser.config.comment = '#'
 
@@ -180,7 +180,7 @@ Product A,"#1 Best Seller"
 Product B,"Use #hashtags"
 `
 
-ok := cisv.parse_csv(parser, csv_data)
+ok := ocsv.parse_csv(parser, csv_data)
 // Result: "Product A" has field "#1 Best Seller" (literal #)
 ```
 
@@ -213,11 +213,11 @@ process_large_file :: proc(filename: string) {
     fmt.printfln("Read time: %v", read_time)
 
     // Parse
-    parser := cisv.parser_create()
-    defer cisv.parser_destroy(parser)
+    parser := ocsv.parser_create()
+    defer ocsv.parser_destroy(parser)
 
     parse_start := time.now()
-    ok = cisv.parse_csv(parser, string(data))
+    ok = ocsv.parse_csv(parser, string(data))
     parse_time := time.diff(parse_start, time.now())
 
     if !ok {
@@ -246,7 +246,7 @@ main :: proc() {
 
 ```odin
 // Process CSV and free rows as you go
-process_csv_streaming :: proc(parser: ^cisv.Parser) {
+process_csv_streaming :: proc(parser: ^ocsv.Parser) {
     for row, i in parser.all_rows {
         // Process row
         process_row(row)
@@ -275,11 +275,11 @@ process_row :: proc(row: []string) {
 ### Check Parse Success
 
 ```odin
-parser := cisv.parser_create()
-defer cisv.parser_destroy(parser)
+parser := ocsv.parser_create()
+defer ocsv.parser_destroy(parser)
 
 csv_data := "name,age,city\nAlice,30,NYC\n"
-ok := cisv.parse_csv(parser, csv_data)
+ok := ocsv.parse_csv(parser, csv_data)
 
 if !ok {
     fmt.eprintln("Parse failed")
@@ -297,8 +297,8 @@ fmt.printfln("Successfully parsed %d rows", len(parser.all_rows))
 ### Relaxed Mode for Malformed CSV
 
 ```odin
-parser := cisv.parser_create()
-defer cisv.parser_destroy(parser)
+parser := ocsv.parser_create()
+defer ocsv.parser_destroy(parser)
 
 // Enable relaxed mode to handle RFC 4180 violations
 parser.config.relaxed = true
@@ -309,7 +309,7 @@ Alice,"Unterminated quote
 Bob,"Another field"
 `
 
-ok := cisv.parse_csv(parser, malformed_csv)
+ok := ocsv.parse_csv(parser, malformed_csv)
 // With relaxed mode, this may succeed
 ```
 
@@ -320,8 +320,8 @@ ok := cisv.parse_csv(parser, malformed_csv)
 ### Reuse Parser for Multiple Files
 
 ```odin
-parser := cisv.parser_create()
-defer cisv.parser_destroy(parser)
+parser := ocsv.parser_create()
+defer ocsv.parser_destroy(parser)
 
 files := []string{"data1.csv", "data2.csv", "data3.csv"}
 
@@ -335,7 +335,7 @@ for filename in files {
     defer delete(data)
 
     // Parse
-    ok = cisv.parse_csv(parser, string(data))
+    ok = ocsv.parse_csv(parser, string(data))
     if !ok {
         fmt.eprintfln("Failed to parse %s", filename)
         continue
@@ -345,7 +345,7 @@ for filename in files {
     fmt.printfln("%s: %d rows", filename, len(parser.all_rows))
 
     // IMPORTANT: Clear parser data before next file
-    cisv.clear_parser_data(parser)
+    ocsv.clear_parser_data(parser)
 }
 ```
 
@@ -358,8 +358,8 @@ for filename in files {
 ### Parse CSV with Unicode
 
 ```odin
-parser := cisv.parser_create()
-defer cisv.parser_destroy(parser)
+parser := ocsv.parser_create()
+defer ocsv.parser_destroy(parser)
 
 // UTF-8 content with CJK characters
 csv_data := `name,language,greeting
@@ -370,7 +370,7 @@ José,Spanish,¡Hola!
 François,French,Bonjour
 `
 
-ok := cisv.parse_csv(parser, csv_data)
+ok := ocsv.parse_csv(parser, csv_data)
 
 if ok {
     for row in parser.all_rows {
@@ -382,8 +382,8 @@ if ok {
 ### Emojis and Special Characters
 
 ```odin
-parser := cisv.parser_create()
-defer cisv.parser_destroy(parser)
+parser := ocsv.parser_create()
+defer ocsv.parser_destroy(parser)
 
 csv_data := `product,rating,emoji
 Widget A,5,⭐⭐⭐⭐⭐
@@ -392,7 +392,7 @@ Tool C,3,⭐⭐⭐
 Device D,5,🔥🔥🔥
 `
 
-ok := cisv.parse_csv(parser, csv_data)
+ok := ocsv.parse_csv(parser, csv_data)
 // Emojis are correctly parsed and preserved
 ```
 
@@ -403,15 +403,15 @@ ok := cisv.parse_csv(parser, csv_data)
 ### Fields with Embedded Delimiters
 
 ```odin
-parser := cisv.parser_create()
-defer cisv.parser_destroy(parser)
+parser := ocsv.parser_create()
+defer ocsv.parser_destroy(parser)
 
 csv_data := `name,address
 Alice,"123 Main St, Apt 4B, New York, NY"
 Bob,"456 Oak Ave, San Francisco, CA"
 `
 
-ok := cisv.parse_csv(parser, csv_data)
+ok := ocsv.parse_csv(parser, csv_data)
 
 // Row 1: ["Alice", "123 Main St, Apt 4B, New York, NY"]
 // The commas inside quotes are preserved as part of the field
@@ -420,8 +420,8 @@ ok := cisv.parse_csv(parser, csv_data)
 ### Nested Quotes
 
 ```odin
-parser := cisv.parser_create()
-defer cisv.parser_destroy(parser)
+parser := ocsv.parser_create()
+defer ocsv.parser_destroy(parser)
 
 // Use "" to represent literal quotes inside quoted fields
 csv_data := `name,quote
@@ -429,7 +429,7 @@ Alice,"She said ""Hello"" to me"
 Bob,"His nickname is ""The Builder"""
 `
 
-ok := cisv.parse_csv(parser, csv_data)
+ok := ocsv.parse_csv(parser, csv_data)
 
 // Row 1: ["Alice", "She said \"Hello\" to me"]
 // Row 2: ["Bob", "His nickname is \"The Builder\""]
@@ -438,8 +438,8 @@ ok := cisv.parse_csv(parser, csv_data)
 ### Multiline Fields
 
 ```odin
-parser := cisv.parser_create()
-defer cisv.parser_destroy(parser)
+parser := ocsv.parser_create()
+defer ocsv.parser_destroy(parser)
 
 csv_data := `product,description
 Widget A,"This is a great product.
@@ -448,7 +448,7 @@ Buy now!"
 Gadget B,"Another excellent item."
 `
 
-ok := cisv.parse_csv(parser, csv_data)
+ok := ocsv.parse_csv(parser, csv_data)
 
 // Row 1 field 2 contains newlines:
 // "This is a great product.\nIt has multiple features.\nBuy now!"
@@ -467,8 +467,8 @@ import "core:fmt"
 import cisv "src"
 
 main :: proc() {
-    parser := cisv.parser_create()
-    defer cisv.parser_destroy(parser)
+    parser := ocsv.parser_create()
+    defer ocsv.parser_destroy(parser)
 
     // Configure all options
     parser.config.delimiter = ';'           // Semicolon delimiter
@@ -483,7 +483,7 @@ main :: proc() {
 'Product B';'Another description';200
 `
 
-    ok := cisv.parse_csv(parser, csv_data)
+    ok := ocsv.parse_csv(parser, csv_data)
 
     if ok {
         for row in parser.all_rows {
@@ -497,15 +497,15 @@ main :: proc() {
 
 ```odin
 // Helper function for common configurations
-create_tsv_parser :: proc() -> ^cisv.Parser {
-    parser := cisv.parser_create()
+create_tsv_parser :: proc() -> ^ocsv.Parser {
+    parser := ocsv.parser_create()
     parser.config.delimiter = '\t'
     parser.config.comment = 0  // Disable comments
     return parser
 }
 
-create_european_parser :: proc() -> ^cisv.Parser {
-    parser := cisv.parser_create()
+create_european_parser :: proc() -> ^ocsv.Parser {
+    parser := ocsv.parser_create()
     parser.config.delimiter = ';'
     return parser
 }
@@ -513,7 +513,7 @@ create_european_parser :: proc() -> ^cisv.Parser {
 // Usage
 main :: proc() {
     parser := create_tsv_parser()
-    defer cisv.parser_destroy(parser)
+    defer ocsv.parser_destroy(parser)
 
     // Parse TSV data
     // ...
@@ -528,13 +528,13 @@ main :: proc() {
 
 ```odin
 // If you know approximate row/field counts
-parser := cisv.parser_create()
-defer cisv.parser_destroy(parser)
+parser := ocsv.parser_create()
+defer ocsv.parser_destroy(parser)
 
 // Reserve capacity to avoid reallocations
 reserve(&parser.all_rows, 10000)  // Expect ~10k rows
 
-ok := cisv.parse_csv(parser, large_csv_data)
+ok := ocsv.parse_csv(parser, large_csv_data)
 ```
 
 ### Benchmark Your Parsing
@@ -555,12 +555,12 @@ benchmark_parse :: proc(filename: string) {
     }
     defer delete(data)
 
-    parser := cisv.parser_create()
-    defer cisv.parser_destroy(parser)
+    parser := ocsv.parser_create()
+    defer ocsv.parser_destroy(parser)
 
     // Warm-up
-    cisv.parse_csv(parser, string(data))
-    cisv.clear_parser_data(parser)
+    ocsv.parse_csv(parser, string(data))
+    ocsv.clear_parser_data(parser)
 
     // Actual benchmark
     iterations :: 10
@@ -568,10 +568,10 @@ benchmark_parse :: proc(filename: string) {
 
     for i in 0..<iterations {
         start := time.now()
-        cisv.parse_csv(parser, string(data))
+        ocsv.parse_csv(parser, string(data))
         duration := time.diff(start, time.now())
         total_duration += duration
-        cisv.clear_parser_data(parser)
+        ocsv.clear_parser_data(parser)
     }
 
     avg_duration := total_duration / iterations
@@ -884,57 +884,57 @@ import { dlopen, FFIType, suffix } from "bun:ffi";
 
 // Load library
 const lib = dlopen(`./libcsv.${suffix}`, {
-  cisv_parser_create: {
+  ocsv_parser_create: {
     returns: FFIType.ptr,
   },
-  cisv_parser_destroy: {
+  ocsv_parser_destroy: {
     args: [FFIType.ptr],
     returns: FFIType.void,
   },
-  cisv_parse_string: {
+  ocsv_parse_string: {
     args: [FFIType.ptr, FFIType.ptr, FFIType.i32],
     returns: FFIType.i32,
   },
-  cisv_get_row_count: {
+  ocsv_get_row_count: {
     args: [FFIType.ptr],
     returns: FFIType.i32,
   },
-  cisv_get_field_count: {
+  ocsv_get_field_count: {
     args: [FFIType.ptr, FFIType.i32],
     returns: FFIType.i32,
   },
-  cisv_get_field: {
+  ocsv_get_field: {
     args: [FFIType.ptr, FFIType.i32, FFIType.i32],
     returns: FFIType.cstring,
   },
 });
 
 // Parse CSV
-const parser = lib.symbols.cisv_parser_create();
+const parser = lib.symbols.ocsv_parser_create();
 const csvData = new TextEncoder().encode("name,age\nAlice,30\nBob,25\n");
 
-const result = lib.symbols.cisv_parse_string(
+const result = lib.symbols.ocsv_parse_string(
   parser,
   csvData,
   csvData.length
 );
 
 if (result === 0) {
-  const rowCount = lib.symbols.cisv_get_row_count(parser);
+  const rowCount = lib.symbols.ocsv_get_row_count(parser);
   console.log(`Parsed ${rowCount} rows`);
 
   for (let i = 0; i < rowCount; i++) {
-    const fieldCount = lib.symbols.cisv_get_field_count(parser, i);
+    const fieldCount = lib.symbols.ocsv_get_field_count(parser, i);
     const row = [];
     for (let j = 0; j < fieldCount; j++) {
-      const field = lib.symbols.cisv_get_field(parser, i, j);
+      const field = lib.symbols.ocsv_get_field(parser, i, j);
       row.push(field);
     }
     console.log(row);
   }
 }
 
-lib.symbols.cisv_parser_destroy(parser);
+lib.symbols.ocsv_parser_destroy(parser);
 ```
 
 ### Wrapper Class for Bun
@@ -946,28 +946,28 @@ class CsvParser {
 
   constructor(libPath: string) {
     this.lib = dlopen(libPath, {
-      cisv_parser_create: { returns: FFIType.ptr },
-      cisv_parser_destroy: { args: [FFIType.ptr], returns: FFIType.void },
-      cisv_parse_string: {
+      ocsv_parser_create: { returns: FFIType.ptr },
+      ocsv_parser_destroy: { args: [FFIType.ptr], returns: FFIType.void },
+      ocsv_parse_string: {
         args: [FFIType.ptr, FFIType.ptr, FFIType.i32],
         returns: FFIType.i32
       },
-      cisv_get_row_count: { args: [FFIType.ptr], returns: FFIType.i32 },
-      cisv_get_field_count: {
+      ocsv_get_row_count: { args: [FFIType.ptr], returns: FFIType.i32 },
+      ocsv_get_field_count: {
         args: [FFIType.ptr, FFIType.i32],
         returns: FFIType.i32
       },
-      cisv_get_field: {
+      ocsv_get_field: {
         args: [FFIType.ptr, FFIType.i32, FFIType.i32],
         returns: FFIType.cstring
       },
     });
-    this.parser = this.lib.symbols.cisv_parser_create();
+    this.parser = this.lib.symbols.ocsv_parser_create();
   }
 
   parse(csvData: string): string[][] {
     const encoded = new TextEncoder().encode(csvData);
-    const result = this.lib.symbols.cisv_parse_string(
+    const result = this.lib.symbols.ocsv_parse_string(
       this.parser,
       encoded,
       encoded.length
@@ -978,13 +978,13 @@ class CsvParser {
     }
 
     const rows: string[][] = [];
-    const rowCount = this.lib.symbols.cisv_get_row_count(this.parser);
+    const rowCount = this.lib.symbols.ocsv_get_row_count(this.parser);
 
     for (let i = 0; i < rowCount; i++) {
-      const fieldCount = this.lib.symbols.cisv_get_field_count(this.parser, i);
+      const fieldCount = this.lib.symbols.ocsv_get_field_count(this.parser, i);
       const row: string[] = [];
       for (let j = 0; j < fieldCount; j++) {
-        const field = this.lib.symbols.cisv_get_field(this.parser, i, j);
+        const field = this.lib.symbols.ocsv_get_field(this.parser, i, j);
         row.push(field);
       }
       rows.push(row);
@@ -994,7 +994,7 @@ class CsvParser {
   }
 
   destroy() {
-    this.lib.symbols.cisv_parser_destroy(this.parser);
+    this.lib.symbols.ocsv_parser_destroy(this.parser);
   }
 }
 
@@ -1012,11 +1012,11 @@ parser.destroy();
 ### Extract Header Row
 
 ```odin
-parser := cisv.parser_create()
-defer cisv.parser_destroy(parser)
+parser := ocsv.parser_create()
+defer ocsv.parser_destroy(parser)
 
 csv_data := "name,age,city\nAlice,30,NYC\nBob,25,SF\n"
-ok := cisv.parse_csv(parser, csv_data)
+ok := ocsv.parse_csv(parser, csv_data)
 
 if ok && len(parser.all_rows) > 0 {
     header := parser.all_rows[0]
@@ -1033,7 +1033,7 @@ if ok && len(parser.all_rows) > 0 {
 import "core:slice"
 
 // Convert CSV to array of maps (column name -> value)
-csv_to_maps :: proc(parser: ^cisv.Parser) -> []map[string]string {
+csv_to_maps :: proc(parser: ^ocsv.Parser) -> []map[string]string {
     if len(parser.all_rows) == 0 {
         return nil
     }
@@ -1058,11 +1058,11 @@ csv_to_maps :: proc(parser: ^cisv.Parser) -> []map[string]string {
 
 // Usage
 main :: proc() {
-    parser := cisv.parser_create()
-    defer cisv.parser_destroy(parser)
+    parser := ocsv.parser_create()
+    defer ocsv.parser_destroy(parser)
 
     csv_data := "name,age,city\nAlice,30,NYC\nBob,25,SF\n"
-    cisv.parse_csv(parser, csv_data)
+    ocsv.parse_csv(parser, csv_data)
 
     maps := csv_to_maps(parser)
     defer delete(maps)
@@ -1079,7 +1079,7 @@ main :: proc() {
 
 ```odin
 // Filter rows based on a condition
-filter_rows :: proc(parser: ^cisv.Parser, predicate: proc([]string) -> bool) -> [][]string {
+filter_rows :: proc(parser: ^ocsv.Parser, predicate: proc([]string) -> bool) -> [][]string {
     filtered := make([dynamic][]string)
 
     for row in parser.all_rows {
@@ -1095,11 +1095,11 @@ filter_rows :: proc(parser: ^cisv.Parser, predicate: proc([]string) -> bool) -> 
 
 // Usage
 main :: proc() {
-    parser := cisv.parser_create()
-    defer cisv.parser_destroy(parser)
+    parser := ocsv.parser_create()
+    defer ocsv.parser_destroy(parser)
 
     csv_data := "name,age,city\nAlice,30,NYC\nBob,25,SF\nCarol,35,LA\n"
-    cisv.parse_csv(parser, csv_data)
+    ocsv.parse_csv(parser, csv_data)
 
     // Filter: age > 26
     filtered := filter_rows(parser, proc(row: []string) -> bool {
@@ -1119,7 +1119,7 @@ main :: proc() {
 import "core:strings"
 
 // Count occurrences of values in a specific column
-count_unique :: proc(parser: ^cisv.Parser, column_index: int) -> map[string]int {
+count_unique :: proc(parser: ^ocsv.Parser, column_index: int) -> map[string]int {
     counts := make(map[string]int)
 
     for row in parser.all_rows {
@@ -1134,11 +1134,11 @@ count_unique :: proc(parser: ^cisv.Parser, column_index: int) -> map[string]int 
 
 // Usage
 main :: proc() {
-    parser := cisv.parser_create()
-    defer cisv.parser_destroy(parser)
+    parser := ocsv.parser_create()
+    defer ocsv.parser_destroy(parser)
 
     csv_data := "name,city\nAlice,NYC\nBob,SF\nCarol,NYC\nDave,SF\n"
-    cisv.parse_csv(parser, csv_data)
+    ocsv.parse_csv(parser, csv_data)
 
     // Count unique cities (column 1)
     counts := count_unique(parser, 1)

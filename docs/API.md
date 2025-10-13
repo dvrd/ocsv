@@ -30,11 +30,11 @@ Complete API documentation for OCSV - Odin CSV Parser.
 - [Streaming API](#streaming-api)
   - [Streaming Functions](#streaming-functions)
 - [FFI Functions (Bun)](#ffi-functions-bun)
-  - [cisv_parser_create](#cisv_parser_create)
-  - [cisv_parser_destroy](#cisv_parser_destroy)
-  - [cisv_parse_string](#cisv_parse_string)
-  - [cisv_get_row_count](#cisv_get_row_count)
-  - [cisv_get_field_count](#cisv_get_field_count)
+  - [ocsv_parser_create](#ocsv_parser_create)
+  - [ocsv_parser_destroy](#ocsv_parser_destroy)
+  - [ocsv_parse_string](#ocsv_parse_string)
+  - [ocsv_get_row_count](#ocsv_get_row_count)
+  - [ocsv_get_field_count](#ocsv_get_field_count)
 - [Memory Management](#memory-management)
 - [Error Handling](#error-handling)
 - [Thread Safety](#thread-safety)
@@ -85,10 +85,10 @@ Parser :: struct {
 
 **Access Pattern:**
 ```odin
-parser := cisv.parser_create()
-defer cisv.parser_destroy(parser)
+parser := ocsv.parser_create()
+defer ocsv.parser_destroy(parser)
 
-cisv.parse_csv(parser, csv_data)
+ocsv.parse_csv(parser, csv_data)
 
 // Access all rows
 for row in parser.all_rows {
@@ -143,15 +143,15 @@ Config :: struct {
 
 **Example:**
 ```odin
-parser := cisv.parser_create()
-defer cisv.parser_destroy(parser)
+parser := ocsv.parser_create()
+defer ocsv.parser_destroy(parser)
 
 // Configure for TSV with comments
 parser.config.delimiter = '\t'
 parser.config.comment = '#'
 parser.config.relaxed = true
 
-cisv.parse_csv(parser, tsv_data)
+ocsv.parse_csv(parser, tsv_data)
 ```
 
 **Common Configurations:**
@@ -230,8 +230,8 @@ parser_create :: proc() -> ^Parser
 
 **Example:**
 ```odin
-parser := cisv.parser_create()
-defer cisv.parser_destroy(parser)
+parser := ocsv.parser_create()
+defer ocsv.parser_destroy(parser)
 
 // Use parser...
 ```
@@ -259,11 +259,11 @@ parser_destroy :: proc(parser: ^Parser)
 
 **Example:**
 ```odin
-parser := cisv.parser_create()
-defer cisv.parser_destroy(parser)  // Recommended: use defer
+parser := ocsv.parser_create()
+defer ocsv.parser_destroy(parser)  // Recommended: use defer
 
 // Alternative (manual):
-cisv.parser_destroy(parser)
+ocsv.parser_destroy(parser)
 ```
 
 **Important:** Always destroy parsers when done to prevent memory leaks.
@@ -295,11 +295,11 @@ parse_csv :: proc(parser: ^Parser, data: string) -> bool
 
 **Example:**
 ```odin
-parser := cisv.parser_create()
-defer cisv.parser_destroy(parser)
+parser := ocsv.parser_create()
+defer ocsv.parser_destroy(parser)
 
 csv_data := "name,age,city\nAlice,30,NYC\nBob,25,SF\n"
-ok := cisv.parse_csv(parser, csv_data)
+ok := ocsv.parse_csv(parser, csv_data)
 
 if ok {
     fmt.printfln("Parsed %d rows", len(parser.all_rows))
@@ -321,15 +321,15 @@ if ok {
 **Relaxed Mode:**
 ```odin
 parser.config.relaxed = true
-ok := cisv.parse_csv(parser, malformed_csv)
+ok := ocsv.parse_csv(parser, malformed_csv)
 // Returns true even if CSV violates RFC 4180
 ```
 
 **Parser Reuse:**
 ```odin
 // Parse multiple CSVs with same parser (previous results are cleared)
-cisv.parse_csv(parser, csv1)  // Results in parser.all_rows
-cisv.parse_csv(parser, csv2)  // Previous results are freed, new results in parser.all_rows
+ocsv.parse_csv(parser, csv1)  // Results in parser.all_rows
+ocsv.parse_csv(parser, csv2)  // Previous results are freed, new results in parser.all_rows
 ```
 
 ---
@@ -365,19 +365,19 @@ Config{
 
 **Example:**
 ```odin
-config := cisv.default_config()
+config := ocsv.default_config()
 config.delimiter = '\t'  // Override delimiter
 config.comment = 0       // Disable comments
 
-parser := cisv.parser_create()
+parser := ocsv.parser_create()
 parser.config = config   // Apply custom config
-defer cisv.parser_destroy(parser)
+defer ocsv.parser_destroy(parser)
 ```
 
 **Note:** `parser_create` automatically initializes `parser.config` with defaults, so you typically just modify the parser's config directly:
 
 ```odin
-parser := cisv.parser_create()
+parser := ocsv.parser_create()
 parser.config.delimiter = '\t'
 ```
 
@@ -818,13 +818,13 @@ for {
 
 Functions exported with C ABI for use with Bun FFI.
 
-### cisv_parser_create
+### ocsv_parser_create
 
 Creates a new parser (FFI version).
 
 **Signature:**
 ```c
-void* cisv_parser_create()
+void* ocsv_parser_create()
 ```
 
 **Returns:**
@@ -844,13 +844,13 @@ const parser = lib.symbols.parser_create();
 
 ---
 
-### cisv_parser_destroy
+### ocsv_parser_destroy
 
 Destroys a parser (FFI version).
 
 **Signature:**
 ```c
-void cisv_parser_destroy(void* parser)
+void ocsv_parser_destroy(void* parser)
 ```
 
 **Parameters:**
@@ -863,13 +863,13 @@ lib.symbols.parser_destroy(parser);
 
 ---
 
-### cisv_parse_string
+### ocsv_parse_string
 
 Parses CSV data (FFI version).
 
 **Signature:**
 ```c
-int cisv_parse_string(void* parser, const char* data, int len)
+int ocsv_parse_string(void* parser, const char* data, int len)
 ```
 
 **Parameters:**
@@ -897,13 +897,13 @@ if (result === 0) {
 
 ---
 
-### cisv_get_row_count
+### ocsv_get_row_count
 
 Gets the number of parsed rows (FFI version).
 
 **Signature:**
 ```c
-int cisv_get_row_count(void* parser)
+int ocsv_get_row_count(void* parser)
 ```
 
 **Parameters:**
@@ -920,13 +920,13 @@ console.log(`Parsed ${rowCount} rows`);
 
 ---
 
-### cisv_get_field_count
+### ocsv_get_field_count
 
 Gets the number of fields in a specific row (FFI version).
 
 **Signature:**
 ```c
-int cisv_get_field_count(void* parser, int row_index)
+int ocsv_get_field_count(void* parser, int row_index)
 ```
 
 **Parameters:**
@@ -969,37 +969,37 @@ for (let i = 0; i < rowCount; i++) {
 
 **Always use `defer`:**
 ```odin
-parser := cisv.parser_create()
-defer cisv.parser_destroy(parser)  // Guaranteed cleanup
+parser := ocsv.parser_create()
+defer ocsv.parser_destroy(parser)  // Guaranteed cleanup
 ```
 
 **Don't leak parsers:**
 ```odin
 // BAD: Parser leaked
 parse_data :: proc(csv: string) {
-    parser := cisv.parser_create()
-    cisv.parse_csv(parser, csv)
+    parser := ocsv.parser_create()
+    ocsv.parse_csv(parser, csv)
     // Missing parser_destroy - MEMORY LEAK
 }
 
 // GOOD: Cleanup guaranteed
 parse_data :: proc(csv: string) {
-    parser := cisv.parser_create()
-    defer cisv.parser_destroy(parser)
-    cisv.parse_csv(parser, csv)
+    parser := ocsv.parser_create()
+    defer ocsv.parser_destroy(parser)
+    ocsv.parse_csv(parser, csv)
 }
 ```
 
 **Reusing parsers:**
 ```odin
-parser := cisv.parser_create()
-defer cisv.parser_destroy(parser)
+parser := ocsv.parser_create()
+defer ocsv.parser_destroy(parser)
 
 for csv_file in csv_files {
     data := os.read_entire_file(csv_file)
     defer delete(data)
 
-    cisv.parse_csv(parser, string(data))  // Old results automatically freed
+    ocsv.parse_csv(parser, string(data))  // Old results automatically freed
     process_rows(parser.all_rows)
 }
 ```
@@ -1026,7 +1026,7 @@ for csv_file in csv_files {
 
 **Strict Mode (default):**
 ```odin
-ok := cisv.parse_csv(parser, csv_data)
+ok := ocsv.parse_csv(parser, csv_data)
 if !ok {
     fmt.eprintln("Invalid CSV format")
     return
@@ -1036,7 +1036,7 @@ if !ok {
 **Relaxed Mode:**
 ```odin
 parser.config.relaxed = true
-ok := cisv.parse_csv(parser, csv_data)
+ok := ocsv.parse_csv(parser, csv_data)
 // ok will be true even for malformed CSV
 ```
 
@@ -1059,17 +1059,17 @@ if (result === -1) {
 
 **Single-threaded:**
 ```odin
-parser := cisv.parser_create()
-defer cisv.parser_destroy(parser)
-cisv.parse_csv(parser, data)
+parser := ocsv.parser_create()
+defer ocsv.parser_destroy(parser)
+ocsv.parse_csv(parser, data)
 ```
 
 **Multi-threaded:**
 ```odin
 parse_worker :: proc(csv_data: string) {
-    parser := cisv.parser_create()  // Each thread creates its own
-    defer cisv.parser_destroy(parser)
-    cisv.parse_csv(parser, csv_data)
+    parser := ocsv.parser_create()  // Each thread creates its own
+    defer ocsv.parser_destroy(parser)
+    ocsv.parse_csv(parser, csv_data)
 }
 
 thread1 := thread.create(parse_worker, data1)
@@ -1090,12 +1090,12 @@ thread2 := thread.create(parse_worker, data2)
 
 **1. Reuse parsers:**
 ```odin
-parser := cisv.parser_create()
-defer cisv.parser_destroy(parser)
+parser := ocsv.parser_create()
+defer ocsv.parser_destroy(parser)
 
 for csv_file in files {
     data := read_file(csv_file)
-    cisv.parse_csv(parser, string(data))  // Reuse parser
+    ocsv.parse_csv(parser, string(data))  // Reuse parser
     process(parser.all_rows)
 }
 ```

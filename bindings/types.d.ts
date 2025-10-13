@@ -5,7 +5,7 @@
 /**
  * Main CSV parser class
  */
-export class CisvParser {
+export class OcsvParser {
   /**
    * Create a new CSV parser
    */

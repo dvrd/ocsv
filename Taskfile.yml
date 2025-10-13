@@ -8,10 +8,10 @@ vars:
   LIB_NAME:
     sh: |
       case "$(uname -s)" in
-        Linux*)   echo "libcsv.so" ;;
-        Darwin*)  echo "libcsv.dylib" ;;
-        MINGW*|MSYS*|CYGWIN*) echo "csv.dll" ;;
-        *) echo "libcsv.so" ;;
+        Linux*)   echo "libocsv.so" ;;
+        Darwin*)  echo "libocsv.dylib" ;;
+        MINGW*|MSYS*|CYGWIN*) echo "ocsv.dll" ;;
+        *) echo "libocsv.so" ;;
       esac
   PLATFORM:
     sh: |

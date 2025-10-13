@@ -52,7 +52,7 @@
 │  │  - State machine   │  - Type conversions              │ │
 │  │  - UTF-8 handling  │  - Memory safety                 │ │
 │  │                    │                                   │ │
-│  │  config.odin       │  cisv.odin                       │ │
+│  │  config.odin       │  ocsv.odin                       │ │
 │  │  - Configuration   │  - Public API                    │ │
 │  │  - Defaults        │  - Re-exports                    │ │
 │  └────────────────────────────────────────────────────────┘ │
@@ -183,20 +183,20 @@ Exports for Bun FFI integration.
 
 ```odin
 // Export with C ABI
-@(export, link_name="cisv_parser_create")
-cisv_parser_create :: proc "c" () -> ^Parser {
+@(export, link_name="ocsv_parser_create")
+ocsv_parser_create :: proc "c" () -> ^Parser {
     context = runtime.default_context()
     // ...
 }
 
-@(export, link_name="cisv_parse_string")
-cisv_parse_string :: proc "c" (parser: ^Parser, data: [^]byte, len: i32) -> i32 {
+@(export, link_name="ocsv_parse_string")
+ocsv_parse_string :: proc "c" (parser: ^Parser, data: [^]byte, len: i32) -> i32 {
     context = runtime.default_context()
     // ...
 }
 
-@(export, link_name="cisv_parser_destroy")
-cisv_parser_destroy :: proc "c" (parser: ^Parser) {
+@(export, link_name="ocsv_parser_destroy")
+ocsv_parser_destroy :: proc "c" (parser: ^Parser) {
     context = runtime.default_context()
     // ...
 }
@@ -208,7 +208,7 @@ context = runtime.default_context()
 ```
 This line is **required** in all FFI functions to ensure proper memory management.
 
-### 4. Main Module (`cisv.odin`)
+### 4. Main Module (`ocsv.odin`)
 
 Package entry point that re-exports all public APIs.
 
@@ -369,36 +369,36 @@ a,b, → ["a", "b", ""]
 import { dlopen, FFIType, suffix } from "bun:ffi";
 
 const lib = dlopen(`./libcsv.${suffix}`, {
-  cisv_parser_create: {
+  ocsv_parser_create: {
     returns: FFIType.ptr,
   },
-  cisv_parse_string: {
+  ocsv_parse_string: {
     args: [FFIType.ptr, FFIType.ptr, FFIType.i32],
     returns: FFIType.i32,
   },
-  cisv_get_row_count: {
+  ocsv_get_row_count: {
     args: [FFIType.ptr],
     returns: FFIType.i32,
   },
-  cisv_parser_destroy: {
+  ocsv_parser_destroy: {
     args: [FFIType.ptr],
     returns: FFIType.void,
   },
 });
 
 // Usage
-const parser = lib.symbols.cisv_parser_create();
+const parser = lib.symbols.ocsv_parser_create();
 const data = new TextEncoder().encode("a,b,c\n1,2,3");
-const result = lib.symbols.cisv_parse_string(parser, data, data.length);
-const rowCount = lib.symbols.cisv_get_row_count(parser);
-lib.symbols.cisv_parser_destroy(parser);
+const result = lib.symbols.ocsv_parse_string(parser, data, data.length);
+const rowCount = lib.symbols.ocsv_get_row_count(parser);
+lib.symbols.ocsv_parser_destroy(parser);
 ```
 
 ### Odin Side
 
 ```odin
-@(export, link_name="cisv_parser_create")
-cisv_parser_create :: proc "c" () -> ^Parser {
+@(export, link_name="ocsv_parser_create")
+ocsv_parser_create :: proc "c" () -> ^Parser {
     context = runtime.default_context()  // CRITICAL!
 
     parser := new(Parser)

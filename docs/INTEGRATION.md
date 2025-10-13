@@ -88,26 +88,26 @@ ls -lh libcsv.dylib
 import { dlopen, FFIType, suffix } from "bun:ffi";
 
 const lib = dlopen(`./libcsv.${suffix}`, {
-  cisv_parser_create: {
+  ocsv_parser_create: {
     returns: FFIType.ptr,
   },
-  cisv_parser_destroy: {
+  ocsv_parser_destroy: {
     args: [FFIType.ptr],
     returns: FFIType.void,
   },
-  cisv_parse_string: {
+  ocsv_parse_string: {
     args: [FFIType.ptr, FFIType.ptr, FFIType.i32],
     returns: FFIType.i32,
   },
-  cisv_get_row_count: {
+  ocsv_get_row_count: {
     args: [FFIType.ptr],
     returns: FFIType.i32,
   },
-  cisv_get_field_count: {
+  ocsv_get_field_count: {
     args: [FFIType.ptr, FFIType.i32],
     returns: FFIType.i32,
   },
-  cisv_get_field: {
+  ocsv_get_field: {
     args: [FFIType.ptr, FFIType.i32, FFIType.i32],
     returns: FFIType.cstring,
   },
@@ -118,13 +118,13 @@ const lib = dlopen(`./libcsv.${suffix}`, {
 
 ```typescript
 // Create parser
-const parser = lib.symbols.cisv_parser_create();
+const parser = lib.symbols.ocsv_parser_create();
 
 // Prepare CSV data (MUST use Buffer)
 const csvData = new TextEncoder().encode("name,age\nAlice,30\nBob,25\n");
 
 // Parse
-const result = lib.symbols.cisv_parse_string(parser, csvData, csvData.length);
+const result = lib.symbols.ocsv_parse_string(parser, csvData, csvData.length);
 
 if (result === 0) {
   console.log("Parse succeeded!");
@@ -133,21 +133,21 @@ if (result === 0) {
 }
 
 // Cleanup
-lib.symbols.cisv_parser_destroy(parser);
+lib.symbols.ocsv_parser_destroy(parser);
 ```
 
 ### Step 3: Access Results
 
 ```typescript
-const rowCount = lib.symbols.cisv_get_row_count(parser);
+const rowCount = lib.symbols.ocsv_get_row_count(parser);
 console.log(`Parsed ${rowCount} rows`);
 
 for (let i = 0; i < rowCount; i++) {
-  const fieldCount = lib.symbols.cisv_get_field_count(parser, i);
+  const fieldCount = lib.symbols.ocsv_get_field_count(parser, i);
   const row: string[] = [];
 
   for (let j = 0; j < fieldCount; j++) {
-    const field = lib.symbols.cisv_get_field(parser, i, j);
+    const field = lib.symbols.ocsv_get_field(parser, i, j);
     row.push(field);
   }
 
@@ -172,32 +172,32 @@ export class CsvParser {
 
   constructor(libPath: string = `./libcsv.${suffix}`) {
     this.lib = dlopen(libPath, {
-      cisv_parser_create: {
+      ocsv_parser_create: {
         returns: FFIType.ptr,
       },
-      cisv_parser_destroy: {
+      ocsv_parser_destroy: {
         args: [FFIType.ptr],
         returns: FFIType.void,
       },
-      cisv_parse_string: {
+      ocsv_parse_string: {
         args: [FFIType.ptr, FFIType.ptr, FFIType.i32],
         returns: FFIType.i32,
       },
-      cisv_get_row_count: {
+      ocsv_get_row_count: {
         args: [FFIType.ptr],
         returns: FFIType.i32,
       },
-      cisv_get_field_count: {
+      ocsv_get_field_count: {
         args: [FFIType.ptr, FFIType.i32],
         returns: FFIType.i32,
       },
-      cisv_get_field: {
+      ocsv_get_field: {
         args: [FFIType.ptr, FFIType.i32, FFIType.i32],
         returns: FFIType.cstring,
       },
     });
 
-    this.parser = this.lib.symbols.cisv_parser_create();
+    this.parser = this.lib.symbols.ocsv_parser_create();
   }
 
   /**
@@ -205,7 +205,7 @@ export class CsvParser {
    */
   parse(csvData: string): string[][] {
     const encoded = new TextEncoder().encode(csvData);
-    const result = this.lib.symbols.cisv_parse_string(
+    const result = this.lib.symbols.ocsv_parse_string(
       this.parser,
       encoded,
       encoded.length
@@ -223,14 +223,14 @@ export class CsvParser {
    */
   private getRows(): string[][] {
     const rows: string[][] = [];
-    const rowCount = this.lib.symbols.cisv_get_row_count(this.parser);
+    const rowCount = this.lib.symbols.ocsv_get_row_count(this.parser);
 
     for (let i = 0; i < rowCount; i++) {
-      const fieldCount = this.lib.symbols.cisv_get_field_count(this.parser, i);
+      const fieldCount = this.lib.symbols.ocsv_get_field_count(this.parser, i);
       const row: string[] = [];
 
       for (let j = 0; j < fieldCount; j++) {
-        const field = this.lib.symbols.cisv_get_field(this.parser, i, j);
+        const field = this.lib.symbols.ocsv_get_field(this.parser, i, j);
         row.push(field);
       }
 
@@ -244,14 +244,14 @@ export class CsvParser {
    * Get number of parsed rows
    */
   getRowCount(): number {
-    return this.lib.symbols.cisv_get_row_count(this.parser);
+    return this.lib.symbols.ocsv_get_row_count(this.parser);
   }
 
   /**
    * Clean up and free memory
    */
   destroy() {
-    this.lib.symbols.cisv_parser_destroy(this.parser);
+    this.lib.symbols.ocsv_parser_destroy(this.parser);
   }
 }
 ```
@@ -355,7 +355,7 @@ parser.destroy();
 ### Check Parse Result
 
 ```typescript
-const result = lib.symbols.cisv_parse_string(parser, data, data.length);
+const result = lib.symbols.ocsv_parse_string(parser, data, data.length);
 
 if (result !== 0) {
   console.error("Parse failed");
@@ -370,7 +370,7 @@ class SafeCsvParser extends CsvParser {
   parse(csvData: string): string[][] | null {
     try {
       const encoded = new TextEncoder().encode(csvData);
-      const result = this.lib.symbols.cisv_parse_string(
+      const result = this.lib.symbols.ocsv_parse_string(
         this.parser,
         encoded,
         encoded.length
@@ -494,13 +494,13 @@ const parser = new CsvParser(libPath);
 **Wrong:**
 ```typescript
 const data = "name,age\nAlice,30\n";
-lib.symbols.cisv_parse_string(parser, data, data.length);  // WRONG
+lib.symbols.ocsv_parse_string(parser, data, data.length);  // WRONG
 ```
 
 **Correct:**
 ```typescript
 const data = new TextEncoder().encode("name,age\nAlice,30\n");
-lib.symbols.cisv_parse_string(parser, data, data.length);  // CORRECT
+lib.symbols.ocsv_parse_string(parser, data, data.length);  // CORRECT
 ```
 
 ### Issue 3: "Segmentation fault"
@@ -524,7 +524,7 @@ class SafeParser {
 
   destroy() {
     if (!this.destroyed) {
-      this.lib.symbols.cisv_parser_destroy(this.parser);
+      this.lib.symbols.ocsv_parser_destroy(this.parser);
       this.destroyed = true;
     }
   }
@@ -640,12 +640,12 @@ See [API.md](API.md) for complete Odin API documentation.
 
 | Function | Signature | Returns | Description |
 |----------|-----------|---------|-------------|
-| `cisv_parser_create` | `() -> ptr` | Parser pointer | Create new parser |
-| `cisv_parser_destroy` | `(ptr) -> void` | - | Destroy parser |
-| `cisv_parse_string` | `(ptr, ptr, i32) -> i32` | 0=success, -1=error | Parse CSV data |
-| `cisv_get_row_count` | `(ptr) -> i32` | Row count | Get number of rows |
-| `cisv_get_field_count` | `(ptr, i32) -> i32` | Field count | Get fields in row |
-| `cisv_get_field` | `(ptr, i32, i32) -> cstring` | Field value | Get field value |
+| `ocsv_parser_create` | `() -> ptr` | Parser pointer | Create new parser |
+| `ocsv_parser_destroy` | `(ptr) -> void` | - | Destroy parser |
+| `ocsv_parse_string` | `(ptr, ptr, i32) -> i32` | 0=success, -1=error | Parse CSV data |
+| `ocsv_get_row_count` | `(ptr) -> i32` | Row count | Get number of rows |
+| `ocsv_get_field_count` | `(ptr, i32) -> i32` | Field count | Get fields in row |
+| `ocsv_get_field` | `(ptr, i32, i32) -> cstring` | Field value | Get field value |
 
 ---
 

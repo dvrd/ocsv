@@ -11,40 +11,40 @@ import { fileURLToPath } from "url";
 
 // Determine library path
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const libPath = resolve(__dirname, "../lib/libcisv.so");
+const libPath = resolve(__dirname, "../lib/libocsv.so");
 
 // Load the shared library
 const lib = dlopen(libPath, {
-  cisv_parser_create: {
+  ocsv_parser_create: {
     returns: FFIType.ptr,
   },
-  cisv_parser_destroy: {
+  ocsv_parser_destroy: {
     args: [FFIType.ptr],
     returns: FFIType.void,
   },
-  cisv_parse_string: {
+  ocsv_parse_string: {
     args: [FFIType.ptr, FFIType.cstring, FFIType.i32],
     returns: FFIType.i32,
   },
-  cisv_get_row_count: {
+  ocsv_get_row_count: {
     args: [FFIType.ptr],
     returns: FFIType.i32,
   },
-  cisv_get_field_count: {
+  ocsv_get_field_count: {
     args: [FFIType.ptr, FFIType.i32],
     returns: FFIType.i32,
   },
 });
 
 /**
- * CisvParser class - Main CSV parser interface
+ * OcsvParser class - Main CSV parser interface
  */
-export class CisvParser {
+export class OcsvParser {
   /**
    * Create a new CSV parser
    */
   constructor() {
-    this.parser = lib.symbols.cisv_parser_create();
+    this.parser = lib.symbols.ocsv_parser_create();
     if (!this.parser) {
       throw new Error("Failed to create parser");
     }
@@ -61,7 +61,7 @@ export class CisvParser {
     const encoder = new TextEncoder();
     const dataBuffer = encoder.encode(data + "\0");
 
-    const result = lib.symbols.cisv_parse_string(
+    const result = lib.symbols.ocsv_parse_string(
       this.parser,
       dataBuffer,
       data.length
@@ -79,7 +79,7 @@ export class CisvParser {
    * @returns {number} Number of rows
    */
   getRowCount() {
-    return lib.symbols.cisv_get_row_count(this.parser);
+    return lib.symbols.ocsv_get_row_count(this.parser);
   }
 
   /**
@@ -88,7 +88,7 @@ export class CisvParser {
    * @returns {number} Number of fields in the row
    */
   getFieldCount(rowIndex) {
-    return lib.symbols.cisv_get_field_count(this.parser, rowIndex);
+    return lib.symbols.ocsv_get_field_count(this.parser, rowIndex);
   }
 
   /**
@@ -97,7 +97,7 @@ export class CisvParser {
    */
   destroy() {
     if (this.parser) {
-      lib.symbols.cisv_parser_destroy(this.parser);
+      lib.symbols.ocsv_parser_destroy(this.parser);
       this.parser = null;
     }
   }
@@ -120,7 +120,7 @@ export class CisvParser {
  * @returns {number} Number of rows parsed
  */
 export function parseCSV(data) {
-  const parser = new CisvParser();
+  const parser = new OcsvParser();
   try {
     return parser.parseString(data);
   } finally {
@@ -134,7 +134,7 @@ export function parseCSV(data) {
  * @returns {Promise<number>} Number of rows parsed
  */
 export async function parseCSVFile(path) {
-  const parser = new CisvParser();
+  const parser = new OcsvParser();
   try {
     return await parser.parseFile(path);
   } finally {
