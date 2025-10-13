@@ -82,6 +82,68 @@ jobs:
           path: ${{ matrix.lib_name }}
           retention-days: 7
 
+  build-windows:
+    name: Build & Test (Windows)
+    runs-on: windows-2022
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Clone and Build Odin
+        shell: cmd
+        run: |
+          cd %TEMP%
+          git clone --depth=1 https://github.com/odin-lang/Odin.git
+          cd Odin
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          build.bat 1
+
+      - name: Add Odin to PATH
+        shell: powershell
+        run: |
+          echo "$env:TEMP\Odin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Verify Odin installation
+        run: odin version
+
+      - name: Build library
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          odin build src -build-mode:shared -out:csv.dll -o:speed
+
+      - name: Verify library exists
+        shell: powershell
+        run: |
+          if (Test-Path "csv.dll") {
+            Write-Host "✓ Library built successfully: csv.dll"
+            Get-Item csv.dll
+          } else {
+            Write-Host "✗ Library not found!"
+            exit 1
+          }
+
+      - name: Run tests
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          odin test tests -all-packages
+
+      - name: Run tests with memory tracking
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          odin test tests -all-packages -debug
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocsv-Windows-${{ github.sha }}
+          path: csv.dll
+          retention-days: 7
+
   lint:
     name: Lint & Format Check
     runs-on: ubuntu-latest
