@@ -23,9 +23,9 @@ package cisv
 
 // Version information
 VERSION_MAJOR :: 0
-VERSION_MINOR :: 4
+VERSION_MINOR :: 7
 VERSION_PATCH :: 0
-VERSION_STRING :: "0.4.0"
+VERSION_STRING :: "0.7.0"
 
 // Re-export all public types and procedures
 // (They are already in the same package, so just documented here)

@@ -1,0 +1,3 @@
+name,description
+Alice,"This is a very long description that will definitely span multiple chunks when we use a small chunk size for testing purposes"
+Bob,"Short"

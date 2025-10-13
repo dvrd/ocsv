@@ -2,21 +2,25 @@
 
 A high-performance, RFC 4180 compliant CSV parser written in Odin with Bun FFI support.
 
-[![Tests](https://img.shields.io/badge/tests-58%2F58%20passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-97%2F97%20passing-brightgreen)]()
 [![Memory Leaks](https://img.shields.io/badge/memory%20leaks-0-brightgreen)]()
 [![Performance](https://img.shields.io/badge/throughput-66.67%20MB%2Fs-blue)]()
 [![RFC 4180](https://img.shields.io/badge/RFC%204180-compliant-blue)]()
 
 ## Status
 
-✅ **Phase 0 Complete** - Core implementation validated and production-ready
+✅ **Phase 2 Progress** - Schema validation and type system implemented
 
 - ✅ PRP-00: Foundation (basic parsing, FFI bindings)
 - ✅ PRP-01: RFC 4180 Edge Cases (full compliance)
 - ✅ PRP-02: Enhanced Testing (58 tests, 95% coverage)
 - ✅ PRP-03: Documentation (complete)
+- ✅ PRP-04: Windows/Linux Support (cross-platform builds, CI/CD)
+- ✅ PRP-05: ARM64/NEON SIMD (21% performance boost)
+- ✅ PRP-06: Error Handling & Recovery (11 error types, 4 recovery strategies)
+- ✅ PRP-07: Schema Validation (6 types, 9 rules, type conversion)
 
-**Production-ready for Phase 0 use cases.** All documentation complete. See [docs/](docs/) for detailed results.
+**Production-ready with type-safe validation.** All 97 tests passing with zero memory leaks.
 
 ## Features
 
@@ -27,8 +31,11 @@ A high-performance, RFC 4180 compliant CSV parser written in Odin with Bun FFI s
 - 🌍 **UTF-8 Support** - Correct handling of international characters
 - 🔧 **Flexible Configuration** - Custom delimiters, quotes, comments
 - 📊 **Large Files** - Successfully tested with 50MB+ datasets
-- 🧪 **Well Tested** - 70 tests with 95% code coverage
+- 🧪 **Well Tested** - 97 tests with 95% code coverage
 - 📦 **Bun Native** - Direct FFI integration with Bun runtime
+- 🛡️ **Error Handling** - Detailed error messages with line/column info, 4 recovery strategies
+- 🎯 **Schema Validation** - Type checking, constraints, custom validators, type conversion
+- 💻 **Cross-Platform** - macOS, Linux, Windows support with automated builds
 
 ## Why Odin + Bun?
 
@@ -52,16 +59,23 @@ cd ocsv
 
 ### Build
 
+**Cross-Platform Support:** macOS, Linux, Windows
+
 ```bash
-# Build release library
-odin build src -build-mode:shared -out:libcsv.dylib -o:speed
+# Using Task (recommended - automatically detects platform)
+task build          # Build release library
+task build-dev      # Build debug library
+task test           # Run all tests
+task info           # Show platform info
 
-# Run tests
-odin test tests -all-packages
+# Manual build (platform-specific output)
+# macOS:    libcsv.dylib
+# Linux:    libcsv.so
+# Windows:  csv.dll
 
-# Build with tasks (requires Task)
-task build
-task test
+odin build src -build-mode:shared -out:libcsv.dylib -o:speed  # macOS
+odin build src -build-mode:shared -out:libcsv.so -o:speed     # Linux
+odin build src -build-mode:shared -out:csv.dll -o:speed       # Windows
 ```
 
 ### Basic Usage (Odin)
@@ -203,7 +217,7 @@ See [docs/RFC4180.md](docs/RFC4180.md) for detailed compliance guide.
 
 ## Testing
 
-**58 tests, 100% pass rate, 0 memory leaks, ~95% code coverage**
+**97 tests, 100% pass rate, 0 memory leaks, ~95% code coverage**
 
 ```bash
 # Run all tests
@@ -225,6 +239,8 @@ odin test tests -all-packages -debug
 - **Performance Regression** (4 tests) - Baseline monitoring
 - **Integration Tests** (13 tests) - End-to-end workflows
 - **SIMD Tests** (12 tests) - SIMD optimization verification
+- **Error Handling Tests** (20 tests) - Error detection, recovery strategies, validation
+- **Schema Validation Tests** (19 tests) - Type checking, constraints, conversion
 
 ## Documentation
 
@@ -240,7 +256,10 @@ odin test tests -all-packages -debug
 - **[PRP-00 Results](docs/PRP-00-RESULTS.md)** - Foundation implementation
 - **[PRP-01 Results](docs/PRP-01-RESULTS.md)** - RFC 4180 compliance
 - **[PRP-02 Results](docs/PRP-02-RESULTS.md)** - Enhanced testing
+- **[PRP-04 Results](docs/PRP-04-RESULTS.md)** - Cross-platform support & CI/CD
 - **[PRP-05 Results](docs/PRP-05-RESULTS.md)** - SIMD optimizations
+- **[PRP-06 Results](docs/PRP-06-RESULTS.md)** - Error handling & recovery
+- **[PRP-07 Results](docs/PRP-07-RESULTS.md)** - Schema validation & type system
 
 ## Project Structure
 
@@ -250,7 +269,10 @@ ocsv/
 │   ├── cisv.odin         # Main module
 │   ├── parser.odin       # RFC 4180 state machine parser
 │   ├── parser_simd.odin  # SIMD-optimized parser (PRP-05)
+│   ├── parser_error.odin # Error-aware parser (PRP-06)
 │   ├── simd.odin         # SIMD search functions (PRP-05)
+│   ├── error.odin        # Error handling system (PRP-06)
+│   ├── schema.odin       # Schema validation & type system (PRP-07)
 │   ├── config.odin       # Configuration types
 │   └── ffi_bindings.odin # Bun FFI exports
 ├── tests/
@@ -260,7 +282,9 @@ ocsv/
 │   ├── test_large_files.odin   # Large dataset tests (6 tests)
 │   ├── test_performance.odin   # Performance regression (4 tests)
 │   ├── test_integration.odin   # End-to-end workflows (13 tests)
-│   └── test_simd.odin          # SIMD tests (12 tests, PRP-05)
+│   ├── test_simd.odin          # SIMD tests (12 tests, PRP-05)
+│   ├── test_error_handling.odin # Error handling tests (20 tests, PRP-06)
+│   └── test_schema.odin        # Schema validation tests (19 tests, PRP-07)
 ├── docs/
 │   ├── API.md                  # API reference (PRP-03)
 │   ├── COOKBOOK.md             # Usage patterns (PRP-03)
@@ -272,7 +296,9 @@ ocsv/
 │   ├── PRP-00-RESULTS.md       # Foundation results
 │   ├── PRP-01-RESULTS.md       # RFC 4180 results
 │   ├── PRP-02-RESULTS.md       # Testing results
-│   └── PRP-05-RESULTS.md       # SIMD optimization results
+│   ├── PRP-05-RESULTS.md       # SIMD optimization results
+│   ├── PRP-06-RESULTS.md       # Error handling results
+│   └── PRP-07-RESULTS.md       # Schema validation results
 └── README.md                   # This file
 ```
 
@@ -284,15 +310,18 @@ ocsv/
 - ✅ PRP-02: Enhanced Testing (58 tests, 95% coverage)
 - ✅ PRP-03: Documentation (API, cookbook, guides)
 
-**Phase 1 (In Progress): Platform Expansion**
-- ⏳ PRP-04: Windows/Linux Support (cross-platform builds, CI/CD)
+**Phase 1 (Complete): Performance & Error Handling** ✅
 - ✅ PRP-05: ARM64/NEON SIMD (achieved: 21% performance boost)
+- ✅ PRP-06: Error Handling & Recovery (11 error types, 4 strategies)
 
-**Phase 2-4 (Planned): Advanced Features**
-- ⏳ PRP-06: Streaming API (parse without loading full file)
-- ⏳ PRP-07: Schema Validation (type checking, constraints)
-- ⏳ PRP-08: Error Recovery (graceful handling of malformed data)
+**Phase 2 (Complete): Advanced Features & Cross-Platform** ✅
+- ✅ PRP-04: Windows/Linux Support (cross-platform builds, CI/CD)
+- ✅ PRP-07: Schema Validation (6 types, 9 rules, type conversion)
+
+**Phase 3 (Planned): Streaming & Advanced Validation**
+- ⏳ PRP-08: Streaming API (parse without loading full file)
 - ⏳ PRP-09: Custom Parsers (plugin architecture)
+- ⏳ PRP-11: Enhanced Validation (regex, cross-field, async validators)
 - ⏳ PRP-10+: Performance monitoring, parallel processing, etc.
 
 See [docs/ACTION_PLAN.md](docs/ACTION_PLAN.md) for complete roadmap.
@@ -300,9 +329,9 @@ See [docs/ACTION_PLAN.md](docs/ACTION_PLAN.md) for complete roadmap.
 ## Requirements
 
 - **Odin:** Latest version (tested with Odin dev-2025-01)
-- **Bun:** v1.0+ (for FFI integration)
-- **Platform:** macOS (Linux/Windows support in PRP-04)
-- **Task:** (optional) For build automation
+- **Bun:** v1.0+ (for FFI integration, optional)
+- **Platform:** macOS, Linux, Windows (full cross-platform support)
+- **Task:** v3+ (optional, for automated cross-platform builds)
 
 ## Contributing
 
@@ -332,7 +361,7 @@ Contributions are welcome! Please read [docs/CONTRIBUTING.md](docs/CONTRIBUTING.
 | Testing | External framework | Built-in (core:testing) |
 | Test Coverage | Unknown | 95% (58 tests) |
 | Memory Leaks | Unknown | 0 (tracked) |
-| Platform Support | Linux/Unix x86_64 | macOS (Windows/Linux planned) |
+| Platform Support | Linux/Unix x86_64 | macOS, Linux, Windows |
 | Timeline | 24 weeks (estimated) | 1 session (3 hours per PRP) |
 | Development Speed | Baseline | **112x faster** |
 
@@ -363,6 +392,6 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 **Built with ❤️ using Odin + Bun**
 
-**Version:** 0.4.0 (Phase 1: SIMD Optimizations)
+**Version:** 0.7.0 (Phase 2: Cross-Platform Support)
 
 **Last Updated:** 2025-10-12

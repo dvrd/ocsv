@@ -1,24 +1,51 @@
 version: '3'
 
 vars:
-  LIB_NAME: libcisv.so
-  LIB_DIR: lib
   SRC_DIR: src
   TEST_DIR: tests
   BENCH_DIR: benchmarks
+  # Platform-specific library names
+  LIB_NAME:
+    sh: |
+      case "$(uname -s)" in
+        Linux*)   echo "libcsv.so" ;;
+        Darwin*)  echo "libcsv.dylib" ;;
+        MINGW*|MSYS*|CYGWIN*) echo "csv.dll" ;;
+        *) echo "libcsv.so" ;;
+      esac
+  PLATFORM:
+    sh: |
+      case "$(uname -s)" in
+        Linux*)   echo "Linux" ;;
+        Darwin*)  echo "macOS" ;;
+        MINGW*|MSYS*|CYGWIN*) echo "Windows" ;;
+        *) echo "Unknown" ;;
+      esac
+  ARCH:
+    sh: uname -m
 
 tasks:
   build:
-    desc: Build release library (optimized)
+    desc: Build release library (optimized, cross-platform)
     cmds:
-      - mkdir -p {{.LIB_DIR}}
-      - odin build {{.SRC_DIR}} -out:{{.LIB_DIR}}/{{.LIB_NAME}} -build-mode:shared -o:speed
+      - echo "Building for {{.PLATFORM}} ({{.ARCH}})..."
+      - odin build {{.SRC_DIR}} -out:{{.LIB_NAME}} -build-mode:shared -o:speed -show-timings
+      - echo "✓ Built {{.LIB_NAME}}"
+    sources:
+      - "{{.SRC_DIR}}/**/*.odin"
+    generates:
+      - "{{.LIB_NAME}}"
 
   build-dev:
-    desc: Build debug library (with debug symbols)
+    desc: Build debug library (with debug symbols, cross-platform)
     cmds:
-      - mkdir -p {{.LIB_DIR}}
-      - odin build {{.SRC_DIR}} -out:{{.LIB_DIR}}/{{.LIB_NAME}} -build-mode:shared -debug
+      - echo "Building DEBUG for {{.PLATFORM}} ({{.ARCH}})..."
+      - odin build {{.SRC_DIR}} -out:{{.LIB_NAME}} -build-mode:shared -debug -show-timings
+      - echo "✓ Built {{.LIB_NAME}} (debug)"
+    sources:
+      - "{{.SRC_DIR}}/**/*.odin"
+    generates:
+      - "{{.LIB_NAME}}"
 
   test:
     desc: Run all tests
@@ -44,9 +71,10 @@ tasks:
       - odin check {{.SRC_DIR}} -all-packages
 
   clean:
-    desc: Clean build artifacts
+    desc: Clean build artifacts (all platforms)
     cmds:
-      - rm -rf {{.LIB_DIR}}/*.so {{.LIB_DIR}}/*.dylib {{.LIB_DIR}}/*.dll
+      - rm -f *.so *.dylib *.dll *.a *.lib
+      - rm -rf tests.bin tests.bin.dSYM
 
   fmt:
     desc: Format Odin source code
@@ -60,6 +88,14 @@ tasks:
       - task: build
       - task: test
       - task: bench
+
+  info:
+    desc: Show platform and build information
+    cmds:
+      - echo "Platform - {{.PLATFORM}}"
+      - echo "Architecture - {{.ARCH}}"
+      - echo "Library name - {{.LIB_NAME}}"
+      - odin version
 
   help:
     desc: Show available tasks
