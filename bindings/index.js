@@ -7,7 +7,7 @@
  * @module ocsv
  */
 
-import { dlopen, FFIType, ptr, CString } from "bun:ffi";
+import { dlopen, FFIType, ptr } from "bun:ffi";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { existsSync } from "fs";
@@ -81,9 +81,9 @@ const lib = dlopen(libPath, {
 		args: [FFIType.ptr],
 		returns: FFIType.void,
 	},
-	ocsv_parse_csv: {
-		args: [FFIType.ptr, FFIType.cstring],
-		returns: FFIType.bool,
+	ocsv_parse_string: {
+		args: [FFIType.ptr, FFIType.cstring, FFIType.i32],
+		returns: FFIType.i32,
 	},
 	ocsv_get_row_count: {
 		args: [FFIType.ptr],
@@ -148,9 +148,10 @@ export class Parser {
 	 * @throws {Error} If parsing fails
 	 */
 	parse(data, options = {}) {
-		const success = lib.symbols.ocsv_parse_csv(this.parser, ptr(Buffer.from(data + '\0')));
+		const buffer = Buffer.from(data + '\0');
+		const parseResult = lib.symbols.ocsv_parse_string(this.parser, ptr(buffer), data.length);
 
-		if (!success) {
+		if (parseResult !== 0) {
 			throw new Error("CSV parsing failed");
 		}
 
@@ -162,9 +163,9 @@ export class Parser {
 			const row = [];
 
 			for (let j = 0; j < fieldCount; j++) {
-				const fieldPtr = lib.symbols.ocsv_get_field(this.parser, i, j);
-				const field = new CString(fieldPtr);
-				row.push(field.toString());
+				// ocsv_get_field returns a cstring which Bun automatically converts to string
+				const field = lib.symbols.ocsv_get_field(this.parser, i, j);
+				row.push(field || "");
 			}
 
 			rows.push(row);

@@ -96,3 +96,28 @@ ocsv_get_field_count :: proc "c" (parser: ^Parser, row_index: c.int) -> c.int {
 
     return c.int(len(parser.all_rows[row_index]))
 }
+
+// ocsv_get_field gets a specific field value from a row
+// Parameters:
+//   parser: pointer to Parser
+//   row_index: row index (0-based)
+//   field_index: field index (0-based)
+// Returns: cstring containing the field value, or nil if invalid indices
+@(export, link_name="ocsv_get_field")
+ocsv_get_field :: proc "c" (parser: ^Parser, row_index: c.int, field_index: c.int) -> cstring {
+    context = runtime.default_context()
+
+    if row_index < 0 || int(row_index) >= len(parser.all_rows) {
+        return nil
+    }
+
+    row := parser.all_rows[row_index]
+    if field_index < 0 || int(field_index) >= len(row) {
+        return nil
+    }
+
+    // Return the field as cstring
+    // Note: This is safe because the strings are managed by the parser
+    // and will remain valid until parser_destroy is called
+    return cstring(raw_data(row[field_index]))
+}
