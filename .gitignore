@@ -62,6 +62,10 @@ coverage/
 tmp/
 temp/
 
+# Task/Make artifacts
+.task/
+.task.yml.checksum
+
 # Claude Code
 .claude/
 CLAUDE.md
