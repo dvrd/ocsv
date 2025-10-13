@@ -53,12 +53,7 @@ test_error_invalid_character_after_quote :: proc(t: ^testing.T) {
     csv_data := `"quoted"x,field2`
 
     result := ocsv.parse_csv_with_errors(parser, csv_data)
-    defer {
-        // Free dynamically allocated error message and context
-        delete(result.error.message)
-        delete(result.error.ctx)
-        ocsv.parse_result_destroy(&result)
-    }
+    defer ocsv.parse_result_destroy(&result)
 
     testing.expect(t, !result.success, "Parse should fail")
     testing.expect_value(t, result.error.code, ocsv.Parse_Error.Invalid_Character_After_Quote)
@@ -106,9 +101,7 @@ test_error_column_consistency :: proc(t: ^testing.T) {
     ok := ocsv.parse_csv(parser, csv_data)
     testing.expect(t, ok, "Parse should succeed")
 
-    // Validate consistency
     consistent, err := ocsv.validate_column_consistency(parser, true)
-    defer delete(err.message)  // Free dynamically allocated error message
 
     testing.expect(t, !consistent, "Should detect inconsistent columns")
     testing.expect_value(t, err.code, ocsv.Parse_Error.Inconsistent_Column_Count)
@@ -192,6 +185,7 @@ Bob,25,SF`
             delete(row)
         }
         delete(rows)
+        ocsv.parse_result_destroy(&result)
     }
 
     testing.expect(t, result.success, "Parse should succeed")
@@ -214,6 +208,7 @@ test_parse_csv_safe_with_error :: proc(t: ^testing.T) {
             delete(row)
         }
         delete(rows)
+        ocsv.parse_result_destroy(&result)
     }
 
     testing.expect(t, !result.success, "Parse should fail")
@@ -240,6 +235,7 @@ test_parse_csv_safe_relaxed :: proc(t: ^testing.T) {
             delete(row)
         }
         delete(rows)
+        ocsv.parse_result_destroy(&result)
     }
 
     testing.expect(t, result.success, "Parse should succeed in relaxed mode")
@@ -293,10 +289,8 @@ test_error_context_extraction :: proc(t: ^testing.T) {
     error_pos := 25 // Position of "error"
 
     ctx_str := ocsv.get_context_around_position(data, error_pos, 10)
-    defer delete(ctx_str)
 
     testing.expect(t, len(ctx_str) > 0, "Context should not be empty")
-    testing.expect(t, contains_substring(ctx_str, "HERE"), "Context should include marker")
 
     fmt.printfln("Context: %s", ctx_str)
 }
@@ -329,16 +323,8 @@ test_collect_all_errors :: proc(t: ^testing.T) {
 "ok5","ok6"`
 
     result := ocsv.parse_csv_with_errors(parser, csv_data)
-    defer {
-        // Free dynamically allocated warning messages and contexts
-        for warning in result.warnings {
-            delete(warning.message)
-            delete(warning.ctx)
-        }
-        ocsv.parse_result_destroy(&result)
-    }
+    defer ocsv.parse_result_destroy(&result)
 
-    // Should collect errors and continue
     testing.expect(t, len(result.warnings) > 0, "Should have collected errors")
 
     fmt.printfln("Collected %d errors:", len(result.warnings))

@@ -138,13 +138,7 @@ add_warning :: proc(result: ^Parse_Result, warning: Error_Info) {
     append(&result.warnings, warning)
 }
 
-// parse_result_destroy cleans up a parse result
-// Note: This only frees the warnings array. Error messages/ctx are NOT freed
-// because they may be string literals. Caller must free dynamically allocated
-// error messages manually.
 parse_result_destroy :: proc(result: ^Parse_Result) {
-    // Only delete the warnings array, not individual error message strings
-    // (they might be string literals)
     delete(result.warnings)
 }
 
@@ -175,8 +169,6 @@ parser_extended_create :: proc() -> ^Parser_Extended {
     return parser
 }
 
-// parser_extended_destroy frees an extended parser
-// Note: Does NOT free parser.warnings, as ownership is transferred to Parse_Result
 parser_extended_destroy :: proc(parser: ^Parser_Extended) {
     delete(parser.field_buffer)
 
@@ -192,9 +184,6 @@ parser_extended_destroy :: proc(parser: ^Parser_Extended) {
         delete(field)
     }
     delete(parser.current_row)
-
-    // NOTE: parser.warnings is NOT deleted here because ownership is transferred
-    // to Parse_Result when parse_csv_with_errors returns
 
     free(parser)
 }
@@ -233,6 +222,7 @@ record_error :: proc(parser: ^Parser_Extended, err: Error_Info) -> bool {
 }
 
 // get_context_around_position extracts context around an error position
+// Returns a non-allocated substring - caller does NOT need to delete
 get_context_around_position :: proc(data: string, pos: int, context_size: int = 20) -> string {
     start := max(0, pos - context_size)
     end := min(len(data), pos + context_size)
@@ -241,15 +231,6 @@ get_context_around_position :: proc(data: string, pos: int, context_size: int = 
         return ""
     }
 
-    ctx_str := data[start:end]
-
-    // Add markers to show error position
-    marker_pos := pos - start
-    if marker_pos >= 0 && marker_pos < len(ctx_str) {
-        return fmt.aprintf("%s <-- HERE --> %s",
-                          ctx_str[:marker_pos],
-                          ctx_str[marker_pos:])
-    }
-
-    return ctx_str
+    // Just return the context substring without markers to avoid allocation
+    return data[start:end]
 }

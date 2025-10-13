@@ -98,7 +98,7 @@ parse_csv_stream :: proc(
 	if err != 0 {
 		if config.error_callback != nil {
 			config.error_callback(
-				make_error(.File_Not_Found, 0, 0, fmt.aprintf("Failed to open file: %s", file_path)),
+				make_error(.File_Not_Found, 0, 0, "Failed to open file"),
 				0,
 				config.user_data,
 			)
@@ -205,8 +205,7 @@ streaming_parser_process_chunk :: proc(
 		if len(parser.field_buffer) > parser.config.max_field_size {
 			if parser.config.error_callback != nil {
 				parser.config.error_callback(
-					make_error(.Max_Field_Size_Exceeded, parser.line_number, 0,
-						fmt.aprintf("Field exceeds max size (%d bytes)", parser.config.max_field_size)),
+					make_error(.Max_Field_Size_Exceeded, parser.line_number, 0, "Field exceeds max size"),
 					parser.line_number,
 					parser.config.user_data,
 				)
@@ -296,8 +295,7 @@ streaming_parser_process_chunk :: proc(
 				} else {
 					if parser.config.error_callback != nil {
 						parser.config.error_callback(
-							make_error(.Invalid_Character_After_Quote, parser.line_number, 0,
-								fmt.aprintf("Invalid character after quote")),
+							make_error(.Invalid_Character_After_Quote, parser.line_number, 0, "Invalid character after quote"),
 							parser.line_number,
 							parser.config.user_data,
 						)
@@ -364,8 +362,7 @@ streaming_parser_finalize :: proc(parser: ^Streaming_Parser) -> bool {
 		} else {
 			if parser.config.error_callback != nil {
 				parser.config.error_callback(
-					make_error(.Unterminated_Quote, parser.line_number, 0,
-						fmt.aprintf("Unterminated quote at end of file")),
+					make_error(.Unterminated_Quote, parser.line_number, 0, "Unterminated quote at end of file"),
 					parser.line_number,
 					parser.config.user_data,
 				)
@@ -409,8 +406,7 @@ streaming_emit_row :: proc(parser: ^Streaming_Parser) -> bool {
 	if row_size > parser.config.max_row_size {
 		if parser.config.error_callback != nil {
 			parser.config.error_callback(
-				make_error(.Max_Row_Size_Exceeded, parser.line_number, 0,
-					fmt.aprintf("Row exceeds max size (%d bytes)", parser.config.max_row_size)),
+				make_error(.Max_Row_Size_Exceeded, parser.line_number, 0, "Row exceeds max size"),
 				parser.line_number,
 				parser.config.user_data,
 			)
@@ -432,49 +428,61 @@ streaming_emit_row :: proc(parser: ^Streaming_Parser) -> bool {
 	}
 
 	// Validate with schema if provided
-	if parser.config.schema != nil && parser.config.schema_callback != nil {
+	if parser.config.schema != nil {
 		result := validate_row(parser.config.schema, parser.current_row[:], parser.line_number)
 
-		// Convert to typed values if validation passed
 		if result.valid {
-			// Convert each field to typed value
-			typed_row := make([]Typed_Value, len(parser.config.schema.columns))
-			for col_schema, j in parser.config.schema.columns {
-				if j < len(parser.current_row) {
-					typed_val, conv_ok := convert_value(col_schema.col_type, parser.current_row[j])
-					if conv_ok {
-						typed_row[j] = typed_val
+			if parser.config.schema_callback != nil {
+				// Convert to typed values
+				typed_row := make([]Typed_Value, len(parser.config.schema.columns))
+				for col_schema, j in parser.config.schema.columns {
+					if j < len(parser.current_row) {
+						typed_val, conv_ok := convert_value(col_schema.col_type, parser.current_row[j])
+						if conv_ok {
+							typed_row[j] = typed_val
+						} else {
+							typed_row[j] = parser.current_row[j]
+						}
 					} else {
-						typed_row[j] = parser.current_row[j] // Keep as string if conversion fails
+						typed_row[j] = ""
 					}
-				} else {
-					typed_row[j] = "" // Missing column
 				}
-			}
 
-			// Call schema callback
-			continue_parsing := parser.config.schema_callback(
-				typed_row,
-				parser.line_number,
-				&result,
-				parser.config.user_data,
-			)
+				continue_parsing := parser.config.schema_callback(
+					typed_row,
+					parser.line_number,
+					&result,
+					parser.config.user_data,
+				)
 
-			delete(typed_row)
-			validation_result_destroy(&result)
+				delete(typed_row)
+				validation_result_destroy(&result)
 
-			if !continue_parsing {
-				parser.stopped = true
-				// Free row
-				for field in parser.current_row {
-					delete(field)
+				if !continue_parsing {
+					parser.stopped = true
+					for field in parser.current_row {
+						delete(field)
+					}
+					clear(&parser.current_row)
+					return false
 				}
-				clear(&parser.current_row)
-				return false
+			} else {
+				validation_result_destroy(&result)
 			}
 		} else {
-			// Validation failed - call error callback if available
-			// Even if validation fails, we may want to continue (depending on strict mode)
+			// Validation failed - report errors via error_callback
+			if parser.config.error_callback != nil && len(result.errors) > 0 {
+				for validation_error in result.errors {
+					error_info := make_error(
+						.None,
+						validation_error.row,
+						validation_error.column,
+						validation_error.message,
+						"",
+					)
+					parser.config.error_callback(error_info, parser.line_number, parser.config.user_data)
+				}
+			}
 			validation_result_destroy(&result)
 		}
 	} else if parser.config.row_callback != nil {

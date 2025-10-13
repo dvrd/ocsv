@@ -324,12 +324,17 @@ test_get_optimal_thread_count :: proc(t: ^testing.T) {
     count2 := ocsv.get_optimal_thread_count(512 * 1024)  // 512 KB
     testing.expect(t, count2 >= 1 && count2 <= os.processor_core_count(), "Should return reasonable count")
 
-    // Large file - should return CPU count
+    // 10 MB file - conservative heuristic (cpu_count/2, min 4, max 8)
     count3 := ocsv.get_optimal_thread_count(10 * 1024 * 1024)  // 10 MB
     cpu_count := os.processor_core_count()
     if cpu_count > 0 {
-        testing.expect_value(t, count3, cpu_count)
+        expected := min(max(cpu_count / 2, 4), 8)
+        testing.expect_value(t, count3, expected)
     }
+
+    // Very large file - should use more threads (up to 8)
+    count4 := ocsv.get_optimal_thread_count(100 * 1024 * 1024)  // 100 MB
+    testing.expect(t, count4 >= 4 && count4 <= 8, "Large file should use 4-8 threads")
 }
 
 @(test)

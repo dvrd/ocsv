@@ -6,9 +6,16 @@ import "core:fmt"
 // Error-aware CSV parser with detailed error reporting and recovery strategies
 
 // parse_csv_with_errors parses CSV with detailed error information
+make_result_and_transfer_warnings :: proc(parser: ^Parser_Extended, result: Parse_Result) -> Parse_Result {
+    res := result
+    res.warnings = parser.warnings
+    parser.warnings = make([dynamic]Error_Info)
+    return res
+}
+
 parse_csv_with_errors :: proc(parser: ^Parser_Extended, data: string) -> Parse_Result {
     if len(data) == 0 {
-        return make_error_result(make_error(.Empty_Input, 0, 0, "Input data is empty"))
+        return make_result_and_transfer_warnings(parser, make_error_result(make_error(.Empty_Input, 0, 0, "Input data is empty")))
     }
 
     state := Parse_State.Field_Start
@@ -163,20 +170,19 @@ parse_csv_with_errors :: proc(parser: ^Parser_Extended, data: string) -> Parse_R
                         "Invalid character after closing quote (relaxed mode)",
                         get_context_around_position(data, pos, 10),
                     )
-                    add_warning(&Parse_Result{warnings = parser.warnings}, warning)
+                    append(&parser.warnings, warning)
                 } else {
                     // Strict mode: error
                     err := make_error(
                         .Invalid_Character_After_Quote,
                         parser.line_number,
                         column,
-                        fmt.aprintf("Invalid character '%c' after closing quote", ch),
+                        "Invalid character after closing quote",  // Use literal instead of fmt.aprintf
                         get_context_around_position(data, pos, 20),
                     )
 
                     if !record_error(parser, err) {
-                        // Cannot recover, return error
-                        return make_error_result(err, len(parser.all_rows))
+                        return make_result_and_transfer_warnings(parser, make_error_result(err, len(parser.all_rows)))
                     }
 
                     // Try to recover
@@ -202,21 +208,19 @@ parse_csv_with_errors :: proc(parser: ^Parser_Extended, data: string) -> Parse_R
             }
         }
 
-        // Check for field size limit
         if parser.config.max_row_size > 0 && len(parser.field_buffer) > parser.config.max_row_size {
             err := make_error(
                 .Max_Field_Size_Exceeded,
                 parser.line_number,
                 column,
-                fmt.aprintf("Field size %d exceeds maximum %d", len(parser.field_buffer), parser.config.max_row_size),
+                "Field size exceeds maximum",
                 "",
             )
 
             if !record_error(parser, err) {
-                return make_error_result(err, len(parser.all_rows))
+                return make_result_and_transfer_warnings(parser, make_error_result(err, len(parser.all_rows)))
             }
 
-            // Skip rest of field
             clear(&parser.field_buffer)
         }
     }
@@ -232,7 +236,6 @@ parse_csv_with_errors :: proc(parser: ^Parser_Extended, data: string) -> Parse_R
         emit_row(&parser.base)
 
     case .In_Quoted_Field:
-        // Unterminated quote
         if parser.config.relaxed {
             emit_field(&parser.base)
             emit_row(&parser.base)
@@ -244,7 +247,7 @@ parse_csv_with_errors :: proc(parser: ^Parser_Extended, data: string) -> Parse_R
                 "Unterminated quoted field at end of file (relaxed mode)",
                 "",
             )
-            add_warning(&Parse_Result{warnings = parser.warnings}, warning)
+            append(&parser.warnings, warning)
         } else {
             err := make_error(
                 .Unterminated_Quote,
@@ -253,7 +256,10 @@ parse_csv_with_errors :: proc(parser: ^Parser_Extended, data: string) -> Parse_R
                 "Unterminated quoted field at end of file",
                 "",
             )
-            return make_error_result(err, len(parser.all_rows))
+
+            if !record_error(parser, err) {
+                return make_result_and_transfer_warnings(parser, make_error_result(err, len(parser.all_rows)))
+            }
         }
 
     case .Field_Start:
@@ -266,10 +272,7 @@ parse_csv_with_errors :: proc(parser: ^Parser_Extended, data: string) -> Parse_R
         // Comment line, do nothing
     }
 
-    // Create success result
-    result := make_success_result(len(parser.all_rows))
-    result.warnings = parser.warnings
-    return result
+    return make_result_and_transfer_warnings(parser, make_success_result(len(parser.all_rows)))
 }
 
 // parse_csv_safe is a convenience wrapper that returns both result and data
@@ -313,7 +316,7 @@ validate_column_consistency :: proc(parser: ^Parser, strict: bool = false) -> (o
                     .Inconsistent_Column_Count,
                     i + 1,
                     0,
-                    fmt.aprintf("Row %d has %d columns, expected %d", i + 1, len(row), expected_columns),
+                    "Inconsistent column count",
                     "",
                 )
             }
