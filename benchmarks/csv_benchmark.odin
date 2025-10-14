@@ -43,7 +43,7 @@ BENCHMARK_CONFIGS :: []Benchmark_Config{
 // Generate CSV content for benchmark
 generate_csv_content :: proc(config: Benchmark_Config, allocator := context.allocator) -> string {
 	builder := strings.builder_make(allocator)
-	defer strings.builder_destroy(&builder)
+	// Note: Caller must delete returned string
 
 	// Write header
 	for col in 0..<config.columns {
