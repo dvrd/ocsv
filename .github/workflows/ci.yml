@@ -14,10 +14,10 @@ jobs:
         os: [macos-14, ubuntu-latest]
         include:
           - os: macos-14
-            lib_name: libcsv.dylib
+            lib_name: libocsv.dylib
             platform: macOS
           - os: ubuntu-latest
-            lib_name: libcsv.so
+            lib_name: libocsv.so
             platform: Linux
 
     runs-on: ${{ matrix.os }}
@@ -112,14 +112,14 @@ jobs:
         shell: cmd
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          odin build src -build-mode:shared -out:csv.dll -o:speed
+          odin build src -build-mode:shared -out:ocsv.dll -o:speed
 
       - name: Verify library exists
         shell: powershell
         run: |
-          if (Test-Path "csv.dll") {
-            Write-Host "✓ Library built successfully: csv.dll"
-            Get-Item csv.dll
+          if (Test-Path "ocsv.dll") {
+            Write-Host "✓ Library built successfully: ocsv.dll"
+            Get-Item ocsv.dll
           } else {
             Write-Host "✗ Library not found!"
             exit 1
@@ -141,7 +141,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ocsv-Windows-${{ github.sha }}
-          path: csv.dll
+          path: ocsv.dll
           retention-days: 7
 
   lint:

@@ -621,3 +621,205 @@ test_plugin_init_failure :: proc(t: ^testing.T) {
     testing.expect(t, !ok, "Should fail to register if init returns false")
     testing.expect_value(t, len(registry.transforms), 0)
 }
+
+// ============================================================================
+// Bridge Function Tests (PRP-12)
+// ============================================================================
+
+@(test)
+test_bridge_sync_single_transform :: proc(t: ^testing.T) {
+    plugin_reg := ocsv.plugin_registry_create()
+    transform_reg := ocsv.registry_create()
+    defer ocsv.plugin_registry_destroy(plugin_reg)
+    defer ocsv.registry_destroy(transform_reg)
+
+    // Register plugin
+    plugin := ocsv.Transform_Plugin{
+        name = "rot13",
+        transform = rot13_transform,
+    }
+    ocsv.plugin_register_transform(plugin_reg, plugin)
+
+    // Sync to transform registry
+    ok := ocsv.plugin_sync_transform_to_registry(plugin_reg, "rot13", transform_reg)
+    testing.expect(t, ok, "Should sync successfully")
+
+    // Verify transform works in standard registry
+    result := ocsv.apply_transform(transform_reg, "rot13", "Hello")
+    defer delete(result)
+    testing.expect_value(t, result, "Uryyb")
+
+    // Try to sync non-existent plugin
+    ok2 := ocsv.plugin_sync_transform_to_registry(plugin_reg, "nonexistent", transform_reg)
+    testing.expect(t, !ok2, "Should fail to sync non-existent plugin")
+}
+
+@(test)
+test_bridge_sync_all_transforms :: proc(t: ^testing.T) {
+    plugin_reg := ocsv.plugin_registry_create()
+    transform_reg := ocsv.registry_create()
+    defer ocsv.plugin_registry_destroy(plugin_reg)
+    defer ocsv.registry_destroy(transform_reg)
+
+    // Register multiple plugins
+    plugin1 := ocsv.Transform_Plugin{
+        name = "rot13",
+        transform = rot13_transform,
+    }
+    plugin2 := ocsv.Transform_Plugin{
+        name = "uppercase",
+        transform = uppercase_transform,
+    }
+
+    ocsv.plugin_register_transform(plugin_reg, plugin1)
+    ocsv.plugin_register_transform(plugin_reg, plugin2)
+
+    // Sync all at once
+    count := ocsv.plugin_sync_all_transforms_to_registry(plugin_reg, transform_reg)
+    testing.expect_value(t, count, 2)
+
+    // Verify both work in standard registry
+    result1 := ocsv.apply_transform(transform_reg, "rot13", "Hello")
+    defer delete(result1)
+    testing.expect_value(t, result1, "Uryyb")
+
+    result2 := ocsv.apply_transform(transform_reg, "uppercase", "hello")
+    defer delete(result2)
+    testing.expect_value(t, result2, "HELLO")
+}
+
+@(test)
+test_bridge_register_with_sync :: proc(t: ^testing.T) {
+    plugin_reg := ocsv.plugin_registry_create()
+    transform_reg := ocsv.registry_create()
+    defer ocsv.plugin_registry_destroy(plugin_reg)
+    defer ocsv.registry_destroy(transform_reg)
+
+    // Register with automatic sync
+    plugin := ocsv.Transform_Plugin{
+        name = "rot13",
+        transform = rot13_transform,
+    }
+    ok := ocsv.plugin_register_transform_with_sync(plugin_reg, plugin, transform_reg)
+    testing.expect(t, ok, "Should register with sync successfully")
+
+    // Verify available in both registries
+    plugin_found, plugin_ok := ocsv.plugin_get_transform(plugin_reg, "rot13")
+    testing.expect(t, plugin_ok, "Should find in plugin registry")
+
+    result := ocsv.apply_transform(transform_reg, "rot13", "Test")
+    defer delete(result)
+    testing.expect_value(t, result, "Grfg")
+}
+
+@(test)
+test_bridge_register_with_sync_no_transform_reg :: proc(t: ^testing.T) {
+    plugin_reg := ocsv.plugin_registry_create()
+    defer ocsv.plugin_registry_destroy(plugin_reg)
+
+    // Register without transform registry (should still work)
+    plugin := ocsv.Transform_Plugin{
+        name = "rot13",
+        transform = rot13_transform,
+    }
+    ok := ocsv.plugin_register_transform_with_sync(plugin_reg, plugin, nil)
+    testing.expect(t, ok, "Should register even without transform registry")
+
+    // Verify still in plugin registry
+    _, found := ocsv.plugin_get_transform(plugin_reg, "rot13")
+    testing.expect(t, found, "Should find in plugin registry")
+}
+
+@(test)
+test_bridge_unified_registry :: proc(t: ^testing.T) {
+    plugin_reg, transform_reg := ocsv.plugin_create_unified_registry()
+    defer ocsv.plugin_registry_destroy(plugin_reg)
+    defer ocsv.registry_destroy(transform_reg)
+
+    // Both registries should be created
+    testing.expect(t, plugin_reg != nil, "Plugin registry should be created")
+    testing.expect(t, transform_reg != nil, "Transform registry should be created")
+
+    // Register with sync
+    plugin := ocsv.Transform_Plugin{
+        name = "rot13",
+        transform = rot13_transform,
+    }
+    ok := ocsv.plugin_register_transform_with_sync(plugin_reg, plugin, transform_reg)
+    testing.expect(t, ok, "Should register with sync")
+
+    // Use both APIs
+    plugin_found, _ := ocsv.plugin_get_transform(plugin_reg, "rot13")
+    result1 := plugin_found.transform("Hello")
+    defer delete(result1)
+    testing.expect_value(t, result1, "Uryyb")
+
+    result2 := ocsv.apply_transform(transform_reg, "rot13", "Hello")
+    defer delete(result2)
+    testing.expect_value(t, result2, "Uryyb")
+}
+
+@(test)
+test_bridge_with_pipeline :: proc(t: ^testing.T) {
+    plugin_reg := ocsv.plugin_registry_create()
+    transform_reg := ocsv.registry_create()
+    defer ocsv.plugin_registry_destroy(plugin_reg)
+    defer ocsv.registry_destroy(transform_reg)
+
+    // Register plugins and sync
+    plugin := ocsv.Transform_Plugin{
+        name = "uppercase",
+        transform = uppercase_transform,
+    }
+    ocsv.plugin_register_transform_with_sync(plugin_reg, plugin, transform_reg)
+
+    // Use plugin transform in standard pipeline
+    pipeline := ocsv.pipeline_create()
+    defer ocsv.pipeline_destroy(pipeline)
+
+    ocsv.pipeline_add_step(pipeline, "uppercase", 0)  // Apply to first field
+
+    // Create test data - must be heap-allocated since pipeline will free/replace them
+    row := []string{strings.clone("hello"), strings.clone("world")}
+    defer delete(row[0])
+    defer delete(row[1])
+
+    // Apply pipeline
+    ocsv.pipeline_apply_to_row(pipeline, transform_reg, row)
+
+    // Verify transformation
+    testing.expect_value(t, row[0], "HELLO")
+    testing.expect_value(t, row[1], "world")  // Unchanged
+}
+
+@(test)
+test_bridge_builtin_and_plugin_coexist :: proc(t: ^testing.T) {
+    plugin_reg := ocsv.plugin_registry_create()
+    transform_reg := ocsv.registry_create()  // Has built-ins
+    defer ocsv.plugin_registry_destroy(plugin_reg)
+    defer ocsv.registry_destroy(transform_reg)
+
+    // Register custom plugin
+    plugin := ocsv.Transform_Plugin{
+        name = "rot13",
+        transform = rot13_transform,
+    }
+    ocsv.plugin_register_transform_with_sync(plugin_reg, plugin, transform_reg)
+
+    // Verify built-in transform still works
+    result1 := ocsv.apply_transform(transform_reg, ocsv.TRANSFORM_TRIM, "  hello  ")
+    defer delete(result1)
+    testing.expect_value(t, result1, "hello")
+
+    // Verify plugin transform works
+    result2 := ocsv.apply_transform(transform_reg, "rot13", "Hello")
+    defer delete(result2)
+    testing.expect_value(t, result2, "Uryyb")
+
+    // Verify both work in combination
+    result3 := ocsv.apply_transform(transform_reg, ocsv.TRANSFORM_UPPERCASE, "hello")
+    defer delete(result3)
+    result4 := ocsv.apply_transform(transform_reg, "rot13", result3)
+    defer delete(result4)
+    testing.expect_value(t, result4, "URYYB")
+}

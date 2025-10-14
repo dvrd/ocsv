@@ -317,3 +317,154 @@ plugin_list_outputs :: proc(registry: ^Plugin_Registry, allocator := context.all
     }
     return names[:]
 }
+
+// ============================================================================
+// Transform Registry Bridge Functions
+// ============================================================================
+//
+// These functions bridge the plugin system with the standard Transform_Registry,
+// allowing plugins to be used seamlessly with the existing transform infrastructure.
+//
+// Use Cases:
+// - Register plugin transforms so they work with apply_transform()
+// - Use plugin transforms in Transform_Pipeline
+// - Enable backward compatibility with code using Transform_Registry
+//
+// See docs/PRP-12-SPEC.md for architectural rationale.
+
+// plugin_sync_transform_to_registry syncs a single plugin transform to a Transform_Registry
+//
+// This allows a plugin transform to be used with the standard transform functions
+// like apply_transform(), apply_transform_to_row(), and Transform_Pipeline.
+//
+// Example:
+//     plugin_reg := plugin_registry_create()
+//     transform_reg := registry_create()
+//     defer plugin_registry_destroy(plugin_reg)
+//     defer registry_destroy(transform_reg)
+//
+//     plugin_register_transform(plugin_reg, My_Plugin)
+//     plugin_sync_transform_to_registry(plugin_reg, "my_transform", transform_reg)
+//
+//     // Now works with standard API
+//     result := apply_transform(transform_reg, "my_transform", "input")
+//
+plugin_sync_transform_to_registry :: proc(
+    plugin_reg: ^Plugin_Registry,
+    plugin_name: string,
+    transform_reg: ^Transform_Registry,
+) -> bool {
+    if plugin_reg == nil || transform_reg == nil do return false
+
+    // Get plugin
+    plugin, ok := plugin_get_transform(plugin_reg, plugin_name)
+    if !ok do return false
+
+    // Register in standard registry
+    register_transform(transform_reg, plugin.name, plugin.transform)
+    return true
+}
+
+// plugin_sync_all_transforms_to_registry syncs all plugin transforms to a Transform_Registry
+//
+// Convenience function to sync all registered plugin transforms at once.
+// Useful for initializing a Transform_Registry with all available plugins.
+//
+// Example:
+//     plugin_reg := plugin_registry_create()
+//     transform_reg := registry_create()
+//     defer plugin_registry_destroy(plugin_reg)
+//     defer registry_destroy(transform_reg)
+//
+//     // Register multiple plugins
+//     plugin_register_transform(plugin_reg, Plugin_A)
+//     plugin_register_transform(plugin_reg, Plugin_B)
+//     plugin_register_transform(plugin_reg, Plugin_C)
+//
+//     // Sync all at once
+//     count := plugin_sync_all_transforms_to_registry(plugin_reg, transform_reg)
+//     fmt.printfln("Synced %d plugin transforms", count)
+//
+// Returns: Number of transforms synced
+plugin_sync_all_transforms_to_registry :: proc(
+    plugin_reg: ^Plugin_Registry,
+    transform_reg: ^Transform_Registry,
+) -> int {
+    if plugin_reg == nil || transform_reg == nil do return 0
+
+    count := 0
+    for name, plugin in plugin_reg.transforms {
+        register_transform(transform_reg, plugin.name, plugin.transform)
+        count += 1
+    }
+    return count
+}
+
+// plugin_register_transform_with_sync registers a transform plugin and syncs to Transform_Registry
+//
+// This is a convenience function that combines plugin registration with
+// automatic sync to a Transform_Registry. Use this when you want plugin
+// transforms to be immediately available in the standard transform system.
+//
+// Example:
+//     plugin_reg := plugin_registry_create()
+//     transform_reg := registry_create()
+//     defer plugin_registry_destroy(plugin_reg)
+//     defer registry_destroy(transform_reg)
+//
+//     // Register with automatic sync
+//     ok := plugin_register_transform_with_sync(plugin_reg, My_Plugin, transform_reg)
+//
+//     // Plugin transform immediately available in both systems
+//     plugin, _ := plugin_get_transform(plugin_reg, "my_transform")  // Works
+//     result := apply_transform(transform_reg, "my_transform", "input")  // Also works
+//
+// Parameters:
+//   - plugin_reg: Plugin registry to register in
+//   - plugin: Transform plugin to register
+//   - transform_reg: Optional Transform_Registry to sync to (can be nil)
+//
+// Returns: true on success, false if registration or sync failed
+plugin_register_transform_with_sync :: proc(
+    plugin_reg: ^Plugin_Registry,
+    plugin: Transform_Plugin,
+    transform_reg: ^Transform_Registry = nil,
+) -> bool {
+    if plugin_reg == nil do return false
+
+    // Register in plugin registry
+    ok := plugin_register_transform(plugin_reg, plugin)
+    if !ok do return false
+
+    // Sync to transform registry if provided
+    if transform_reg != nil {
+        register_transform(transform_reg, plugin.name, plugin.transform)
+    }
+
+    return true
+}
+
+// plugin_create_unified_registry creates both registries and syncs them
+//
+// Convenience function that creates a Plugin_Registry and a Transform_Registry,
+// then sets up automatic synchronization. This is the recommended way to use
+// both systems together.
+//
+// Example:
+//     plugin_reg, transform_reg := plugin_create_unified_registry()
+//     defer plugin_registry_destroy(plugin_reg)
+//     defer registry_destroy(transform_reg)
+//
+//     // Register plugins - they automatically work with both systems
+//     plugin_register_transform_with_sync(plugin_reg, My_Plugin, transform_reg)
+//
+//     // Use either API interchangeably
+//     plugin, _ := plugin_get_transform(plugin_reg, "my_transform")
+//     result := apply_transform(transform_reg, "my_transform", "input")
+//
+// Returns: (plugin_registry, transform_registry)
+plugin_create_unified_registry :: proc(allocator := context.allocator) -> (^Plugin_Registry, ^Transform_Registry) {
+    plugin_reg := plugin_registry_create(allocator)
+    transform_reg := registry_create(allocator)
+    return plugin_reg, transform_reg
+}

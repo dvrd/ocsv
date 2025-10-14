@@ -3,10 +3,18 @@ package ocsv
 import "core:simd"
 import "base:intrinsics"
 
-// Optimized byte search functions for CSV parsing
-// These use compiler auto-vectorization instead of manual SIMD to avoid overhead
+// Optimized byte search functions for CSV parsing using proper SIMD
+// Based on core/bytes implementation pattern
 
-// Platform-specific implementations (use compiler auto-vectorization)
+// SIMD constants for 128-bit (16 byte) vectors
+SCANNER_INDICES_128 :: simd.u8x16{
+	0,  1,  2,  3,  4,  5,  6,  7,
+	8,  9, 10, 11, 12, 13, 14, 15,
+}
+SCANNER_SENTINEL_MIN_128 :: simd.u8x16(255) // Use max u8 as sentinel for min search
+SIMD_REG_SIZE_128 :: 16
+
+// Platform-specific implementations
 when ODIN_ARCH == .arm64 {
 
     find_delimiter_simd :: proc(data: []byte, delim: byte, start: int = 0) -> int {
@@ -67,45 +75,149 @@ when ODIN_ARCH == .arm64 {
     }
 }
 
-// Optimized implementations using compiler auto-vectorization
-// Simple loops allow LLVM to generate efficient vectorized code
+// Real SIMD implementations using Odin's SIMD API
 
-find_byte_optimized :: proc(data: []byte, target: byte, start: int = 0) -> int {
+find_byte_optimized :: proc(data: []byte, target: byte, start: int = 0) -> int #no_bounds_check {
     if start >= len(data) {
         return -1
     }
 
     search_data := data[start:]
-    for i := 0; i < len(search_data); i += 1 {
+    i, l := 0, len(search_data)
+
+    // Guard against small data - not worth vectorizing
+    if l < SIMD_REG_SIZE_128 {
+        for i < l {
+            if search_data[i] == target {
+                return start + i
+            }
+            i += 1
+        }
+        return -1
+    }
+
+    target_vec: simd.u8x16 = target
+
+    // Process 16-byte chunks with SIMD
+    for i + SIMD_REG_SIZE_128 <= l {
+        // Load 16 bytes (unaligned safe)
+        chunk := intrinsics.unaligned_load(cast(^simd.u8x16)raw_data(search_data[i:]))
+
+        // Compare all bytes - returns vector of 0xFF where match, 0x00 where no match
+        matches := simd.lanes_eq(chunk, target_vec)
+
+        // Check if any lane matched
+        if simd.reduce_or(matches) > 0 {
+            // Use select to get indices where matched, sentinel where not
+            sel := simd.select(matches, SCANNER_INDICES_128, SCANNER_SENTINEL_MIN_128)
+            // Find lowest index (first match)
+            off := simd.reduce_min(sel)
+            return start + i + int(off)
+        }
+
+        i += SIMD_REG_SIZE_128
+    }
+
+    // Handle remaining bytes (< 16)
+    for i < l {
         if search_data[i] == target {
             return start + i
         }
+        i += 1
     }
+
     return -1
 }
 
-find_any_special_optimized :: proc(data: []byte, delim: byte, quote: byte, start: int = 0) -> (int, byte) {
+find_any_special_optimized :: proc(data: []byte, delim: byte, quote: byte, start: int = 0) -> (int, byte) #no_bounds_check {
     if start >= len(data) {
         return -1, 0
     }
 
     search_data := data[start:]
-    for i := 0; i < len(search_data); i += 1 {
+    i, l := 0, len(search_data)
+    newline: byte = '\n'
+
+    // Guard against small data
+    if l < SIMD_REG_SIZE_128 {
+        for i < l {
+            b := search_data[i]
+            if b == delim || b == quote || b == newline {
+                return start + i, b
+            }
+            i += 1
+        }
+        return -1, 0
+    }
+
+    delim_vec: simd.u8x16 = delim
+    quote_vec: simd.u8x16 = quote
+    newline_vec: simd.u8x16 = newline
+
+    // Process 16-byte chunks with SIMD
+    for i + SIMD_REG_SIZE_128 <= l {
+        // Load 16 bytes
+        chunk := intrinsics.unaligned_load(cast(^simd.u8x16)raw_data(search_data[i:]))
+
+        // Compare against each special character
+        delim_matches := simd.lanes_eq(chunk, delim_vec)
+        quote_matches := simd.lanes_eq(chunk, quote_vec)
+        newline_matches := simd.lanes_eq(chunk, newline_vec)
+
+        // Combine all matches with OR
+        any_matches := delim_matches | quote_matches | newline_matches
+
+        // Check if any lane matched
+        if simd.reduce_or(any_matches) > 0 {
+            // Get indices where matched
+            sel := simd.select(any_matches, SCANNER_INDICES_128, SCANNER_SENTINEL_MIN_128)
+            off := simd.reduce_min(sel)
+            matched_byte := search_data[i + int(off)]
+            return start + i + int(off), matched_byte
+        }
+
+        i += SIMD_REG_SIZE_128
+    }
+
+    // Handle remaining bytes
+    for i < l {
         b := search_data[i]
-        if b == delim || b == quote || b == '\n' {
+        if b == delim || b == quote || b == newline {
             return start + i, b
         }
+        i += 1
     }
+
     return -1, 0
 }
 
-// Legacy scalar functions (kept for compatibility)
+// Pure scalar implementations (no SIMD, always available)
 find_byte_scalar :: proc(data: []byte, target: byte, start: int = 0) -> int {
-    return find_byte_optimized(data, target, start)
+    if start >= len(data) {
+        return -1
+    }
+
+    for i in start..<len(data) {
+        if data[i] == target {
+            return i
+        }
+    }
+    return -1
 }
 
 find_any_special_scalar :: proc(data: []byte, delim: byte, quote: byte, start: int = 0) -> (int, byte) {
-    return find_any_special_optimized(data, delim, quote, start)
+    if start >= len(data) {
+        return -1, 0
+    }
+
+    newline: byte = '\n'
+    for i in start..<len(data) {
+        b := data[i]
+        if b == delim || b == quote || b == newline {
+            return i, b
+        }
+    }
+    return -1, 0
 }
 
 // Helper to check if SIMD is available on this platform
