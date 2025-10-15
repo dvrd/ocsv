@@ -12,6 +12,7 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { existsSync } from "fs";
 import os from "os";
+import { OcsvError, ParseErrorCode } from "./errors.js";
 
 /**
  * Detect the current platform and architecture
@@ -97,6 +98,76 @@ const lib = dlopen(libPath, {
 		args: [FFIType.ptr, FFIType.i32, FFIType.i32],
 		returns: FFIType.cstring,
 	},
+	// Configuration setters (Phase 1)
+	ocsv_set_delimiter: {
+		args: [FFIType.ptr, FFIType.u8],
+		returns: FFIType.i32,
+	},
+	ocsv_set_quote: {
+		args: [FFIType.ptr, FFIType.u8],
+		returns: FFIType.i32,
+	},
+	ocsv_set_escape: {
+		args: [FFIType.ptr, FFIType.u8],
+		returns: FFIType.i32,
+	},
+	ocsv_set_skip_empty_lines: {
+		args: [FFIType.ptr, FFIType.bool],
+		returns: FFIType.i32,
+	},
+	ocsv_set_comment: {
+		args: [FFIType.ptr, FFIType.u8],
+		returns: FFIType.i32,
+	},
+	ocsv_set_trim: {
+		args: [FFIType.ptr, FFIType.bool],
+		returns: FFIType.i32,
+	},
+	ocsv_set_relaxed: {
+		args: [FFIType.ptr, FFIType.bool],
+		returns: FFIType.i32,
+	},
+	ocsv_set_max_row_size: {
+		args: [FFIType.ptr, FFIType.i32],
+		returns: FFIType.i32,
+	},
+	ocsv_set_from_line: {
+		args: [FFIType.ptr, FFIType.i32],
+		returns: FFIType.i32,
+	},
+	ocsv_set_to_line: {
+		args: [FFIType.ptr, FFIType.i32],
+		returns: FFIType.i32,
+	},
+	ocsv_set_skip_lines_with_error: {
+		args: [FFIType.ptr, FFIType.bool],
+		returns: FFIType.i32,
+	},
+	// Error getters (Phase 1)
+	ocsv_has_error: {
+		args: [FFIType.ptr],
+		returns: FFIType.bool,
+	},
+	ocsv_get_error_code: {
+		args: [FFIType.ptr],
+		returns: FFIType.i32,
+	},
+	ocsv_get_error_line: {
+		args: [FFIType.ptr],
+		returns: FFIType.i32,
+	},
+	ocsv_get_error_column: {
+		args: [FFIType.ptr],
+		returns: FFIType.i32,
+	},
+	ocsv_get_error_message: {
+		args: [FFIType.ptr],
+		returns: FFIType.cstring,
+	},
+	ocsv_get_error_count: {
+		args: [FFIType.ptr],
+		returns: FFIType.i32,
+	},
 });
 
 /**
@@ -104,9 +175,16 @@ const lib = dlopen(libPath, {
  * @typedef {Object} ParseOptions
  * @property {string} [delimiter=','] - Field delimiter character
  * @property {string} [quote='"'] - Quote character for escaping
- * @property {string} [comment='#'] - Comment line prefix
- * @property {boolean} [hasHeader=false] - Whether the first row is a header
+ * @property {string} [escape='"'] - Escape character
+ * @property {boolean} [skipEmptyLines=false] - Skip empty lines
+ * @property {string} [comment='#'] - Comment line prefix (use empty string to disable)
+ * @property {boolean} [trim=false] - Trim whitespace from fields
  * @property {boolean} [relaxed=false] - Enable relaxed parsing mode (allows some RFC violations)
+ * @property {number} [maxRowSize=1048576] - Maximum row size in bytes (default: 1MB)
+ * @property {number} [fromLine=0] - Start parsing from line N (0 = start from beginning)
+ * @property {number} [toLine=-1] - Stop parsing at line N (-1 = parse all lines)
+ * @property {boolean} [skipLinesWithError=false] - Skip lines that fail to parse
+ * @property {boolean} [hasHeader=false] - Whether the first row is a header
  */
 
 /**
@@ -141,18 +219,81 @@ export class Parser {
 	}
 
 	/**
+	 * Apply configuration options to the parser (Phase 1)
+	 * @private
+	 * @param {ParseOptions} options - Configuration options
+	 */
+	_applyConfig(options) {
+		if (options.delimiter !== undefined) {
+			const code = options.delimiter.charCodeAt(0);
+			lib.symbols.ocsv_set_delimiter(this.parser, code);
+		}
+
+		if (options.quote !== undefined) {
+			const code = options.quote.charCodeAt(0);
+			lib.symbols.ocsv_set_quote(this.parser, code);
+		}
+
+		if (options.escape !== undefined) {
+			const code = options.escape.charCodeAt(0);
+			lib.symbols.ocsv_set_escape(this.parser, code);
+		}
+
+		if (options.skipEmptyLines !== undefined) {
+			lib.symbols.ocsv_set_skip_empty_lines(this.parser, options.skipEmptyLines);
+		}
+
+		if (options.comment !== undefined) {
+			// Use charCode 0 to disable comments
+			const code = options.comment.length > 0 ? options.comment.charCodeAt(0) : 0;
+			lib.symbols.ocsv_set_comment(this.parser, code);
+		}
+
+		if (options.trim !== undefined) {
+			lib.symbols.ocsv_set_trim(this.parser, options.trim);
+		}
+
+		if (options.relaxed !== undefined) {
+			lib.symbols.ocsv_set_relaxed(this.parser, options.relaxed);
+		}
+
+		if (options.maxRowSize !== undefined) {
+			lib.symbols.ocsv_set_max_row_size(this.parser, options.maxRowSize);
+		}
+
+		if (options.fromLine !== undefined) {
+			lib.symbols.ocsv_set_from_line(this.parser, options.fromLine);
+		}
+
+		if (options.toLine !== undefined) {
+			lib.symbols.ocsv_set_to_line(this.parser, options.toLine);
+		}
+
+		if (options.skipLinesWithError !== undefined) {
+			lib.symbols.ocsv_set_skip_lines_with_error(this.parser, options.skipLinesWithError);
+		}
+	}
+
+	/**
 	 * Parse a CSV string and return the data
 	 * @param {string} data - CSV data to parse
 	 * @param {ParseOptions} [options={}] - Parsing options
 	 * @returns {ParseResult} Parsed CSV data
-	 * @throws {Error} If parsing fails
+	 * @throws {OcsvError} If parsing fails
 	 */
 	parse(data, options = {}) {
+		// Apply configuration before parsing (Phase 1)
+		this._applyConfig(options);
 		const buffer = Buffer.from(data + '\0');
 		const parseResult = lib.symbols.ocsv_parse_string(this.parser, ptr(buffer), data.length);
 
-		if (parseResult !== 0) {
-			throw new Error("CSV parsing failed");
+		// Check for errors after parsing (Phase 1)
+		if (parseResult !== 0 || lib.symbols.ocsv_has_error(this.parser)) {
+			const errorCode = lib.symbols.ocsv_get_error_code(this.parser);
+			const errorLine = lib.symbols.ocsv_get_error_line(this.parser);
+			const errorColumn = lib.symbols.ocsv_get_error_column(this.parser);
+			const errorMessage = lib.symbols.ocsv_get_error_message(this.parser) || "CSV parsing failed";
+			throw new OcsvError(errorMessage, errorCode, errorLine, errorColumn);
 		}
 
 		const rowCount = lib.symbols.ocsv_get_row_count(this.parser);
@@ -256,3 +397,6 @@ export async function parseCSVFile(path, options = {}) {
 
 // Export for backwards compatibility
 export { Parser as OCSVParser };
+
+// Export error handling classes (Phase 1)
+export { OcsvError, ParseErrorCode };

@@ -20,22 +20,64 @@ export interface ParseOptions {
 	quote?: string;
 
 	/**
-	 * Comment line prefix
+	 * Escape character
+	 * @default '"'
+	 */
+	escape?: string;
+
+	/**
+	 * Skip empty lines
+	 * @default false
+	 */
+	skipEmptyLines?: boolean;
+
+	/**
+	 * Comment line prefix (use empty string to disable)
 	 * @default '#'
 	 */
 	comment?: string;
 
 	/**
-	 * Whether the first row is a header
+	 * Trim whitespace from fields
 	 * @default false
 	 */
-	hasHeader?: boolean;
+	trim?: boolean;
 
 	/**
 	 * Enable relaxed parsing mode (allows some RFC violations)
 	 * @default false
 	 */
 	relaxed?: boolean;
+
+	/**
+	 * Maximum row size in bytes
+	 * @default 1048576 (1MB)
+	 */
+	maxRowSize?: number;
+
+	/**
+	 * Start parsing from line N (0 = start from beginning)
+	 * @default 0
+	 */
+	fromLine?: number;
+
+	/**
+	 * Stop parsing at line N (-1 = parse all lines)
+	 * @default -1
+	 */
+	toLine?: number;
+
+	/**
+	 * Skip lines that fail to parse
+	 * @default false
+	 */
+	skipLinesWithError?: boolean;
+
+	/**
+	 * Whether the first row is a header
+	 * @default false
+	 */
+	hasHeader?: boolean;
 }
 
 /**
@@ -56,6 +98,57 @@ export interface ParseResult {
 	 * Total number of data rows parsed (excluding header)
 	 */
 	rowCount: number;
+}
+
+/**
+ * Parse error codes matching Odin Parse_Error enum
+ */
+export enum ParseErrorCode {
+	None = 0,
+	File_Not_Found = 1,
+	Invalid_UTF8 = 2,
+	Unterminated_Quote = 3,
+	Invalid_Character_After_Quote = 4,
+	Max_Row_Size_Exceeded = 5,
+	Max_Field_Size_Exceeded = 6,
+	Inconsistent_Column_Count = 7,
+	Invalid_Escape_Sequence = 8,
+	Empty_Input = 9,
+	Memory_Allocation_Failed = 10,
+}
+
+/**
+ * Custom error class for CSV parsing errors
+ * Provides detailed error information including line and column numbers
+ */
+export class OcsvError extends Error {
+	/** Error code from ParseErrorCode enum */
+	code: number;
+
+	/** Line number where error occurred (1-indexed) */
+	line: number;
+
+	/** Column number where error occurred (1-indexed) */
+	column: number;
+
+	/**
+	 * Create a new OcsvError
+	 * @param message - Error message
+	 * @param code - Error code from ParseErrorCode enum
+	 * @param line - Line number where error occurred
+	 * @param column - Column number where error occurred
+	 */
+	constructor(message: string, code: number, line: number, column: number);
+
+	/**
+	 * Get a formatted error message with line and column information
+	 */
+	toString(): string;
+
+	/**
+	 * Get error code name from numeric code
+	 */
+	getCodeName(): string;
 }
 
 /**
@@ -83,7 +176,7 @@ export class Parser {
 	 * @param data - CSV data to parse
 	 * @param options - Parsing options
 	 * @returns Parsed CSV data
-	 * @throws Error if parsing fails
+	 * @throws {OcsvError} If parsing fails with detailed error information
 	 */
 	parse(data: string, options?: ParseOptions): ParseResult;
 

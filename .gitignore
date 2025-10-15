@@ -69,3 +69,6 @@ temp/
 # Claude Code
 .claude/
 CLAUDE.md
+
+# Documentation backups
+docs.backup-*/

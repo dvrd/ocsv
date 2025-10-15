@@ -1,385 +1,133 @@
-# CISV Documentation
+# OCSV Documentation
 
-This directory contains comprehensive documentation for the CISV project, including architecture analysis, implementation roadmap using PRP methodology, and future planning.
+Welcome to the OCSV documentation! This guide will help you find what you need quickly.
 
-**📋 DOCUMENTATION CREATED (2025-10-12)** - Complete analysis and roadmap using PRP methodology
+## 📂 Documentation Structure
 
----
+### [01-getting-started](01-getting-started/)
+Quick start guides for new users.
+- Installation instructions (coming soon)
+- Basic usage examples (coming soon)
+- First steps with OCSV
 
-## Quick Navigation
+### [02-user-guide](02-user-guide/)
+Complete user documentation and API reference.
+- **[API Reference](02-user-guide/api-reference.md)** - Core API functions and types
+- **[Cookbook](02-user-guide/cookbook.md)** - Common recipes and patterns (25+ examples)
+- **[Integration Guide](02-user-guide/integration.md)** - Integration patterns for frameworks
+- Configuration options (coming soon)
+- Error handling patterns (coming soon)
 
-### 🎯 [ACTION_PLAN.md](./ACTION_PLAN.md) - **START HERE**
-Main roadmap using PRP (Product Requirement Prompt) methodology. Complete implementation plan for 24 weeks across 4 phases with 11 detailed PRPs.
+### [03-advanced](03-advanced/)
+Advanced features and optimization techniques.
+- **[Streaming API](03-advanced/streaming.md)** - Memory-efficient large file parsing
+- Data transformation system (coming soon)
+- Plugin architecture (coming soon)
+- Schema validation (coming soon)
 
-**What's inside:**
-- Executive Summary & Priority Matrix
-- Phase 0: Critical Foundation (PRP-01 to 03)
-- Phase 1: Platform Expansion (PRP-04 to 05)
-- Phase 2: Robustness (PRP-06 to 07)
-- Phase 3: Advanced Features (PRP-08 to 09)
-- Phase 4: Scale & Ecosystem (PRP-10 to 11)
-- Risk mitigation & success metrics
-- Complete timeline with dependencies
+### [04-internals](04-internals/)
+Deep dive into OCSV architecture and implementation.
+- **[Architecture Overview](04-internals/architecture-overview.md)** - System architecture and design
+- **[RFC 4180 Compliance](04-internals/rfc4180-compliance.md)** - RFC 4180 specification compliance
+- **[SIMD Optimization](04-internals/simd-optimization.md)** - ARM NEON implementation details
+- **[Memory Management](04-internals/memory-management.md)** - Memory ownership patterns
+- **[Performance Tuning](04-internals/performance-tuning.md)** - Performance optimization guide
 
-### 📊 [PROJECT_ANALYSIS_SUMMARY.md](./PROJECT_ANALYSIS_SUMMARY.md)
-High-level overview of the entire analysis, project health metrics, and prioritized roadmap.
+### [05-development](05-development/)
+Contributing and development guidelines.
+- **[Contributing Guide](05-development/contributing.md)** - How to contribute to OCSV
+- **[Code Quality Audit](05-development/code-quality-audit.md)** - Code quality assessment (9.9/10)
+- CI/CD validation templates and checklists
+- Testing strategy (coming soon)
 
-**Topics covered:**
-- Executive summary & current status
-- Technical architecture overview
-- Performance benchmarks & analysis
-- Gap analysis (Critical, High, Medium priority)
-- Phased roadmap (0-4)
-- Risk assessment
-- Success metrics per phase
-- Comparison with similar projects (d3-dsv, papaparse, xsv)
-
-### 🏗️ [ARCHITECTURE_OVERVIEW.md](./ARCHITECTURE_OVERVIEW.md)
-Comprehensive documentation of CISV's system architecture and technical design.
-
-**Topics covered:**
-- System architecture with layer breakdown
-- Core components (Parser, SIMD, Transformer, Writer)
-- SIMD optimization strategies (AVX-512/AVX2/SSE2/NEON)
-- Memory management (mmap, ring buffers)
-- Data flow diagrams
-- Complete API surface (C API, JavaScript API, CLI)
-- Build system (Makefile, node-gyp)
-- Design patterns
-- Performance characteristics
-- Platform support matrix
-- Future enhancements
+### [06-project-history](06-project-history/)
+Project roadmap, changelog, and historical records.
+- **[Roadmap](06-project-history/roadmap.md)** - Future development plans
+- **[Changelog](06-project-history/changelog.md)** - Version history (v0.0.1 to v0.11.0)
+- **[PRP Archive](06-project-history/prp-archive/)** - Completed PRPs (historical, 28 files)
 
 ---
 
-## Core Documentation
+## Quick Links
 
-### 📁 [planning/](./planning/) - **Future Work**
-Detailed specifications for upcoming PRPs (Product Requirement Prompts):
+### New Users
+1. Installation Guide (coming soon)
+2. Quick Examples (coming soon)
+3. **[API Reference](02-user-guide/api-reference.md)**
 
-**Planned Documents:**
-- **PRP-02-TESTING.md** - Enhanced testing suite with fuzzing
-- **PRP-03-DOCUMENTATION.md** - Comprehensive documentation plan
-- **PRP-04-WINDOWS.md** - Windows platform support
-- **PRP-05-ARM64.md** - ARM64/NEON SIMD optimizations
-- **PRP-06-ERROR_HANDLING.md** - Production-grade error handling
-- **PRP-07-PERFORMANCE.md** - Performance monitoring & profiling
-- **PRP-08-SCHEMA_VALIDATION.md** - Schema validation & type inference
-- **PRP-09-TRANSFORMS.md** - Advanced transformation pipeline
-- **PRP-10-PARALLEL.md** - Multi-threaded parallel processing
-- **PRP-11-PLUGINS.md** - Plugin architecture & ecosystem
+### API Documentation
+- **[Core API](02-user-guide/api-reference.md)** - Parser functions and types
+- **[Streaming API](03-advanced/streaming.md)** - Chunk-based processing
+- **[Cookbook](02-user-guide/cookbook.md)** - 25+ practical examples
 
-### 📁 [examples/](./examples/) - **Code Examples**
-Practical examples and cookbook recipes:
+### Advanced Topics
+- **[Architecture Overview](04-internals/architecture-overview.md)** - System design
+- **[SIMD Optimization](04-internals/simd-optimization.md)** - ARM NEON details
+- **[Performance Tuning](04-internals/performance-tuning.md)** - Optimization strategies
+- **[Memory Management](04-internals/memory-management.md)** - Memory ownership patterns
+- **[RFC 4180 Compliance](04-internals/rfc4180-compliance.md)** - Specification compliance
 
-**Planned Examples:**
-- Basic parsing examples
-- Streaming large files
-- Custom transformations
-- Schema validation
-- Error handling patterns
-- Performance optimization
-- Cross-platform usage
-- Plugin development
+### Contributing
+- **[Contributing Guide](05-development/contributing.md)** - Development guidelines
+- **[Code Quality Audit](05-development/code-quality-audit.md)** - Quality assessment (9.9/10)
+- Testing Guide (coming soon)
 
 ---
 
-## Documentation Overview
+## Migration Complete ✅
 
-### Analysis Methodology
-
-This documentation was created through:
-
-1. **Sequential Thinking Analysis** - Deep analysis of CISV architecture using structured thinking
-   - Code review of all C/C++ source files (~100KB core code)
-   - API analysis (C API, N-API bindings, JavaScript wrappers)
-   - Performance benchmark analysis
-   - Platform compatibility assessment
-   - SIMD optimization review
-
-2. **Gap Analysis** - Identification of missing features and limitations
-   - RFC 4180 compliance gaps
-   - Platform support limitations
-   - Test coverage analysis
-   - Documentation assessment
-   - Community ecosystem evaluation
-
-3. **PRP Methodology** - Structured planning approach from [Wirasm/PRPs-agentic-eng](https://github.com/Wirasm/PRPs-agentic-eng)
-   - Product Requirement Prompts with complete context
-   - Vertical slices of working software
-   - Validation criteria and acceptance tests
-   - Progressive complexity (simple → complex)
-   - Clear dependencies and timeline
-
-4. **Prioritization Matrix** - Risk/Impact/Complexity analysis
-   - P0: Critical blockers (production readiness)
-   - P1: High-value features (platform expansion)
-   - P2: Robustness improvements
-   - P3: Advanced features
-   - P4: Ecosystem building
+All major documentation has been migrated to the new hierarchical structure. The flat structure has been replaced with a clear 6-category system for better navigation and discoverability.
 
 ---
 
-## Project Status
+## What Changed (2025-10-15)
 
-### Current State (v0.0.7)
+The documentation has been reorganized from a flat structure (48 files in `docs/`) to a hierarchical structure for better navigation:
 
-**Strengths:**
-- ✅ Excellent performance (71-104 MB/s)
-- ✅ SIMD-optimized parsing (AVX-512/AVX2)
-- ✅ Zero-copy memory mapping
-- ✅ Rich transformation API
-- ✅ Both sync and async APIs
-- ✅ CLI tool + Node.js addon
-- ✅ TypeScript definitions
+**Before:**
+- 48 markdown files in one folder
+- Hard to find related documents
+- PRP results mixed with user guides
+- Duplicate/obsolete files
 
-**Critical Limitations:**
-- ❌ NOT production-ready (disclaimer in README)
-- ❌ Incomplete RFC 4180 edge cases
-- ❌ Limited test coverage (~20%)
-- ❌ Linux/Unix only (no Windows)
-- ❌ x86_64 only (no ARM64 SIMD)
-- ❌ Minimal documentation
-- ❌ Basic error handling
+**After:**
+- 6 clear categories (01-06)
+- User-facing docs separated from internals
+- Historical PRPs archived (28 files)
+- Obsolete/duplicate files removed (11 files)
+- README in each category
 
-### Roadmap Status
-
-**Phase 0: Foundation (Week 1-4)** - 🔴 NOT STARTED
-- PRP-01: RFC 4180 Edge Cases
-- PRP-02: Enhanced Testing Suite
-- PRP-03: Documentation Foundation
-
-**Phase 1: Platform Expansion (Week 5-10)** - ⏸️ PENDING
-- PRP-04: Windows Support
-- PRP-05: ARM64/NEON SIMD
-
-**Phase 2: Robustness (Week 11-14)** - ⏸️ PENDING
-- PRP-06: Error Handling & Recovery
-- PRP-07: Performance Monitoring
-
-**Phase 3: Advanced Features (Week 15-20)** - ⏸️ PENDING
-- PRP-08: Schema Validation & Type Inference
-- PRP-09: Advanced Transformations
-
-**Phase 4: Scale & Ecosystem (Week 21-24)** - ⏸️ PENDING
-- PRP-10: Parallel Processing
-- PRP-11: Plugin Architecture
+**Key Improvements:**
+- ✅ ~75% reduction in root files (48 → 12 active)
+- ✅ Clear navigation hierarchy
+- ✅ All PRPs archived (28 documents)
+- ✅ Consolidated SIMD documentation (3 → 1)
+- ✅ Removed duplicate summaries (3 files)
+- ✅ Removed obsolete PRP specs (8 files)
+- ✅ Organized all docs into proper categories
 
 ---
 
-## Quick Reference
+## Current Stats
 
-### For New Contributors
-1. Start with [PROJECT_ANALYSIS_SUMMARY.md](./PROJECT_ANALYSIS_SUMMARY.md) - Understand the big picture
-2. Read [ARCHITECTURE_OVERVIEW.md](./ARCHITECTURE_OVERVIEW.md) - Learn the technical architecture
-3. Check [ACTION_PLAN.md](./ACTION_PLAN.md) - See the implementation roadmap
-4. Pick a PRP from `planning/` - Find something to work on
-
-### For Maintainers
-1. Review [PROJECT_ANALYSIS_SUMMARY.md](./PROJECT_ANALYSIS_SUMMARY.md) for current status
-2. Use [ACTION_PLAN.md](./ACTION_PLAN.md) for sprint planning
-3. Reference [ARCHITECTURE_OVERVIEW.md](./ARCHITECTURE_OVERVIEW.md) when designing features
-4. Update roadmap status as PRPs are completed
-
-### For Users
-1. Check main project [README.md](../README.md) for installation and usage
-2. See `examples/` directory (when created) for code examples
-3. Review [ARCHITECTURE_OVERVIEW.md](./ARCHITECTURE_OVERVIEW.md) for performance tuning
-4. Check `planning/` for upcoming features
+| Category | Files | Description |
+|----------|-------|-------------|
+| 01-getting-started | 1 | Quick start guides |
+| 02-user-guide | 3 | API reference, cookbook, integration |
+| 03-advanced | 2 | Streaming, transforms, plugins |
+| 04-internals | 5 | Architecture, SIMD, RFC4180, memory, performance |
+| 05-development | 4 | Contributing, code quality, CI/CD |
+| 06-project-history | 3 + 28 archived | Roadmap, changelog, PRP archive |
+| **Total organized** | **18 + 28 archived** | **46 files in clear structure** |
 
 ---
 
-## Document Statistics
+## Feedback
 
-| Document | Size | Topics | Diagrams/Examples |
-|----------|------|--------|-------------------|
-| PROJECT_ANALYSIS_SUMMARY.md | ~600 lines | 20+ | 15+ |
-| ARCHITECTURE_OVERVIEW.md | ~1400 lines | 40+ | 30+ |
-| ACTION_PLAN.md | ~800 lines | 11 PRPs | 20+ |
-| **Total Documentation** | **~2800 lines** | **70+ topics** | **65+ examples** |
+Found a broken link or have suggestions? Please [open an issue](https://github.com/yourusername/ocsv/issues).
 
 ---
 
-## Key Insights from Analysis
-
-### Performance Analysis
-
-**Current Benchmarks:**
-- **Sync**: 71-104 MB/s (competitive with d3-dsv)
-- **Async**: 27-98 MB/s (varies with data access pattern)
-- **vs. Competition**: 2-4x faster than papaparse, csv-parse
-
-**Bottlenecks Identified:**
-1. UTF-8 → UTF-16 conversion (Node.js): ~30% overhead
-2. JavaScript transform overhead: 50x slower than C
-3. Memory allocation for rows: ~20% of parse time
-
-**Optimization Opportunities:**
-1. External strings (V8 feature) - avoid UTF-16 conversion
-2. SIMD for transformations (uppercase/lowercase)
-3. Multi-threading for large files (2-4x speedup potential)
-
-### Critical Path to Production
-
-**Blocking Issues:**
-1. 🔴 **RFC 4180 Compliance** - Must handle all edge cases
-2. 🔴 **Test Coverage** - Need >95% coverage + fuzzing
-3. 🟡 **Documentation** - API reference + cookbook required
-
-**Non-Blocking But High-Value:**
-4. 🟡 **Windows Support** - Expands market by 40%
-5. 🟡 **ARM64 Support** - Apple Silicon, AWS Graviton
-6. 🟢 **Error Handling** - Production robustness
-7. 🟢 **Schema Validation** - Enterprise feature
-
-### Technical Debt
-
-**Identified Issues:**
-1. No unit tests in C code
-2. Limited error messages
-3. No Windows/ARM support
-4. Sparse documentation
-5. No fuzzing/property testing
-6. No performance regression tests
-
-**Mitigation Plan:**
-- Phase 0 addresses #1, #2, #4, #5, #6
-- Phase 1 addresses #3
-- Ongoing: Keep debt low with test-first development
-
----
-
-## Comparison with Reference Projects
-
-### vs. wayu (Shell Config Manager)
-
-**Similarities:**
-- Both use PRP methodology
-- Similar documentation structure
-- Test-driven development approach
-- Phased implementation
-
-**Differences:**
-- CISV: Performance-critical C library
-- wayu: User-facing CLI tool in Odin
-- CISV: Cross-platform challenge (Windows/ARM)
-- wayu: Shell-specific (Zsh/Bash)
-
-**Lessons Applied from wayu:**
-- Comprehensive architecture documentation
-- Detailed PRP specifications
-- Test coverage tracking
-- Phase-based rollout
-
-### vs. Other CSV Libraries
-
-| Project | Performance | Platform Support | Production Ready | Community |
-|---------|------------|------------------|------------------|-----------|
-| **CISV** | ⚡⚡⚡ Fast | ⚠️ Linux/Unix only | ❌ Not yet | 🌱 Small |
-| d3-dsv | ⚡⚡⚡ Fast | ✅ All | ✅ Yes | 🌳 Large |
-| papaparse | ⚡ Medium | ✅ All | ✅ Yes | 🌳 Large |
-| csv-parse | ⚡ Slow | ✅ All | ✅ Yes | 🌳 Large |
-| xsv (Rust) | ⚡⚡⚡ Fast | ✅ All | ✅ Yes | 🌲 Medium |
-
-**CISV's Competitive Advantage (Post-Roadmap):**
-- ✅ Performance on par with d3-dsv/xsv
-- ✅ Node.js native integration
-- ✅ Rich transformation API
-- ✅ Production-ready with RFC 4180 compliance
-- ✅ Cross-platform (Windows + Linux + macOS + ARM64)
-- ✅ Advanced features (schema validation, parallel processing)
-
----
-
-## Contributing to Documentation
-
-When updating these documents:
-
-1. **Maintain Consistency** - Follow existing structure and style
-2. **Include Examples** - Provide code examples for concepts
-3. **Keep Current** - Update when codebase changes
-4. **Cross-Reference** - Link to related sections in other docs
-5. **Validate Code** - Ensure all code examples are valid C/JavaScript
-6. **Update Roadmap** - Mark PRPs as completed when done
-
-### Documentation Style Guide
-
-**Headers:**
-- Use ATX-style headers (#, ##, ###)
-- Max 3 levels deep in most cases
-- Descriptive, not generic
-
-**Code Blocks:**
-```c
-// Use fenced code blocks with language specifier
-// Include comments for clarity
-void example_function() {
-    // Implementation
-}
-```
-
-**Lists:**
-- Use `-` for unordered lists
-- Use `1.` for ordered lists
-- Consistent indentation (2 spaces)
-
-**Status Indicators:**
-- ✅ Completed / Working
-- ⚠️ Partial / Warning
-- ❌ Not implemented / Broken
-- 🔴 Blocked / Critical
-- 🟡 In Progress / Medium Priority
-- 🟢 Planned / Low Priority
-- ⏸️ Paused / Pending
-
----
-
-## Feedback & Updates
-
-These documents are living documentation. If you find:
-- ❌ Inaccuracies or outdated information
-- ❓ Missing topics or unclear explanations
-- 🐛 Broken code examples
-- 💡 Suggestions for improvement
-
-Please:
-1. Open an issue in the main repository
-2. Submit a PR with corrections
-3. Start a discussion in GitHub Discussions
-4. Contact the maintainers
-
----
-
-## License
-
-These documents are part of the CISV project and follow the same MIT license as the main codebase.
-
----
-
-## Methodology Reference
-
-**PRP (Product Requirement Prompt) Methodology:**
-- Source: https://github.com/Wirasm/PRPs-agentic-eng
-- Approach: Structured prompts for AI-assisted development
-- Key Concept: "Minimum viable packet an AI needs to ship production-ready code"
-
-**PRP Structure:**
-1. **Goal**: What and why
-2. **Context**: Curated codebase intelligence
-3. **Implementation Blueprint**: Tasks and pseudocode
-4. **Validation Loop**: Executable tests
-
-**Benefits:**
-- Clear scope and deliverables
-- Complete context for implementation
-- Built-in validation criteria
-- Progressive complexity
-
----
-
-**Last Updated:** 2025-10-12
-**Documentation Version:** 1.0
-**Analysis Method:** Sequential Thinking + PRP Methodology
-**Total PRPs Planned:** 11 (across 4 phases)
-**Estimated Timeline:** 24 weeks
-**Next Review:** 2025-10-19
+**Last Updated:** 2025-10-15
+**Status:** Active reorganization in progress
+**Version:** 0.11.0

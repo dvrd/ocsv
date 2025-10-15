@@ -143,13 +143,12 @@ parse_result_destroy :: proc(result: ^Parse_Result) {
 }
 
 // Parser_Extended extends Parser with error handling capabilities
+// Note: last_error and error_count are now in base Parser (Phase 1)
 Parser_Extended :: struct {
-    using base: Parser,                 // Embed standard parser
+    using base: Parser,                 // Embed standard parser (includes last_error, error_count)
     recovery_strategy: Recovery_Strategy, // How to handle errors
-    last_error: Error_Info,             // Last error encountered
     warnings: [dynamic]Error_Info,      // Collection of warnings
     max_errors: int,                    // Maximum errors before stopping (0 = unlimited)
-    error_count: int,                   // Number of errors encountered
 }
 
 // parser_extended_create creates a parser with error handling
@@ -161,6 +160,7 @@ parser_extended_create :: proc() -> ^Parser_Extended {
     parser.current_row = make([dynamic]string)
     parser.all_rows = make([dynamic][]string)
     parser.line_number = 1
+    parser.column_number = 1
     parser.recovery_strategy = .Fail_Fast
     parser.last_error = Error_Info{code = .None}
     parser.warnings = make([dynamic]Error_Info)

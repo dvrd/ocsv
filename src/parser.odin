@@ -14,12 +14,15 @@ Parse_State :: enum {
 
 // Parser maintains the state for CSV parsing
 Parser :: struct {
-    config:       Config,                 // Parser configuration
-    state:        Parse_State,            // Current parse state
-    field_buffer: [dynamic]u8,            // Buffer for accumulating current field
-    current_row:  [dynamic]string,        // Current row being built
-    all_rows:     [dynamic][]string,      // All parsed rows
-    line_number:  int,                    // Current line number (1-indexed)
+    config:        Config,                 // Parser configuration
+    state:         Parse_State,            // Current parse state
+    field_buffer:  [dynamic]u8,            // Buffer for accumulating current field
+    current_row:   [dynamic]string,        // Current row being built
+    all_rows:      [dynamic][]string,      // All parsed rows
+    line_number:   int,                    // Current line number (1-indexed)
+    column_number: int,                    // Current column number (1-indexed, Phase 1)
+    last_error:    Error_Info,             // Last error encountered (Phase 1 addition)
+    error_count:   int,                    // Total number of errors (Phase 1 addition)
 }
 
 // parser_create creates a new parser with default configuration
@@ -31,6 +34,9 @@ parser_create :: proc() -> ^Parser {
     parser.current_row = make([dynamic]string)
     parser.all_rows = make([dynamic][]string)
     parser.line_number = 1
+    parser.column_number = 1
+    parser.last_error = Error_Info{code = .None}
+    parser.error_count = 0
     return parser
 }
 
@@ -95,8 +101,10 @@ parse_csv_scalar :: proc(parser: ^Parser, data: string) -> bool {
     clear(&parser.field_buffer)
     clear_parser_data(parser)  // Properly free existing data before reuse
     parser.line_number = 1
+    parser.column_number = 1
 
     for ch, i in data {
+        parser.column_number += 1
         // Only compare bytes for ASCII characters (delimiters/quotes are always ASCII)
         ch_is_ascii := ch < 128
         ch_byte := byte(ch) if ch_is_ascii else 0xFF
@@ -179,6 +187,8 @@ parse_csv_scalar :: proc(parser: ^Parser, data: string) -> bool {
                     state = .In_Quoted_Field
                 } else {
                     // Strict mode: this is an error
+                    record_parser_error(parser, .Invalid_Character_After_Quote,
+                        "Invalid character after closing quote (strict mode)")
                     return false
                 }
             }
@@ -208,6 +218,8 @@ parse_csv_scalar :: proc(parser: ^Parser, data: string) -> bool {
             emit_field(parser)
             emit_row(parser)
         } else {
+            record_parser_error(parser, .Unterminated_Quote,
+                "Unterminated quoted field at end of input")
             return false // Error: unterminated quote
         }
     case .Field_Start:
@@ -269,6 +281,7 @@ emit_row :: proc(parser: ^Parser) {
     append(&parser.all_rows, row_copy)
     clear(&parser.current_row)
     parser.line_number += 1
+    parser.column_number = 1
 }
 
 // is_comment_line checks if a line is a comment
@@ -280,4 +293,10 @@ is_comment_line :: proc(line: string, comment_char: byte) -> bool {
     if len(trimmed) == 0 do return false
 
     return trimmed[0] == comment_char
+}
+
+// record_parser_error records an error in the parser (Phase 1 addition)
+record_parser_error :: proc(parser: ^Parser, code: Parse_Error, message: string, ctx: string = "") {
+    parser.last_error = make_error(code, parser.line_number, parser.column_number, message, ctx)
+    parser.error_count += 1
 }
