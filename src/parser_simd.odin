@@ -2,6 +2,34 @@ package ocsv
 
 import "core:strings"
 
+// Character classification for fast byte checking
+// PHASE 3: Lookup table eliminates branches for character classification
+Char_Class :: enum u8 {
+    Normal      = 0,  // Regular character
+    Delimiter   = 1,  // Field separator
+    Quote       = 2,  // Quote character
+    Newline     = 3,  // Line feed
+    CR          = 4,  // Carriage return
+}
+
+// build_char_table creates a 256-entry lookup table for fast character classification
+build_char_table :: proc(delimiter, quote: byte) -> [256]Char_Class {
+    table: [256]Char_Class
+
+    // Initialize all as normal
+    for i in 0..<256 {
+        table[i] = .Normal
+    }
+
+    // Set special characters
+    table[delimiter] = .Delimiter
+    table[quote] = .Quote
+    table['\n'] = .Newline
+    table['\r'] = .CR
+
+    return table
+}
+
 // bulk_append_no_cr appends bytes from data[start:end] to buffer, skipping carriage returns
 // This is a hot path - optimized for cases where \r is rare (most CSVs use LF only)
 bulk_append_no_cr :: proc(buffer: ^[dynamic]u8, data: []byte, start, end: int) {
@@ -46,12 +74,18 @@ parse_csv_simd :: proc(parser: ^Parser, data: string) -> bool {
     clear_parser_data(parser)
     parser.line_number = 1
 
+    // PHASE 3: Build character classification lookup table (eliminates branches)
+    char_table := build_char_table(parser.config.delimiter, parser.config.quote)
+
     // Convert string to []byte for SIMD operations
     data_bytes := transmute([]byte)data
     i := 0
 
     for i < len(data_bytes) {
         ch_byte := data_bytes[i]
+
+        // PHASE 3: Fast character classification (O(1) lookup vs multiple branches)
+        ch_class := char_table[ch_byte]
 
         // Fast path: ASCII check (delimiters/quotes are always ASCII)
         ch_is_ascii := ch_byte < 128
@@ -79,15 +113,17 @@ parse_csv_simd :: proc(parser: ^Parser, data: string) -> bool {
 
         switch state {
         case .Field_Start:
-            if ch_is_ascii && ch_byte == parser.config.quote {
+            // PHASE 3: Use lookup table for fast character classification
+            switch ch_class {
+            case .Quote:
                 state = .In_Quoted_Field
                 i += 1
                 continue
-            } else if ch_is_ascii && ch_byte == parser.config.delimiter {
+            case .Delimiter:
                 emit_empty_field(parser)
                 i += 1
                 continue
-            } else if ch_byte == '\n' {
+            case .Newline:
                 if len(parser.current_row) > 0 {
                     emit_empty_field(parser)
                     emit_row(parser)
@@ -96,14 +132,16 @@ parse_csv_simd :: proc(parser: ^Parser, data: string) -> bool {
                 }
                 i += 1
                 continue
-            } else if ch_byte == '\r' {
+            case .CR:
                 i += 1
                 continue
-            } else if parser.config.comment != 0 && ch_is_ascii && ch_byte == parser.config.comment && len(parser.current_row) == 0 {
-                state = .Field_End
-                i += 1
-                continue
-            } else {
+            case .Normal:
+                // Check for comment character (not in lookup table, as it's optional)
+                if parser.config.comment != 0 && ch_is_ascii && ch_byte == parser.config.comment && len(parser.current_row) == 0 {
+                    state = .Field_End
+                    i += 1
+                    continue
+                }
                 // Start unquoted field - add first char and switch to In_Field
                 append_rune_to_buffer(&parser.field_buffer, ch)
                 state = .In_Field
@@ -173,29 +211,31 @@ parse_csv_simd :: proc(parser: ^Parser, data: string) -> bool {
             }
 
         case .Quote_In_Quote:
-            if ch_is_ascii && ch_byte == parser.config.quote {
+            // PHASE 3: Use lookup table for fast character classification
+            switch ch_class {
+            case .Quote:
                 // Doubled quote "" = literal quote
                 append(&parser.field_buffer, parser.config.quote)
                 state = .In_Quoted_Field
                 i += 1
                 continue
-            } else if ch_is_ascii && ch_byte == parser.config.delimiter {
+            case .Delimiter:
                 // End of quoted field
                 emit_field(parser)
                 state = .Field_Start
                 i += 1
                 continue
-            } else if ch_byte == '\n' {
+            case .Newline:
                 // End of quoted field and row
                 emit_field(parser)
                 emit_row(parser)
                 state = .Field_Start
                 i += 1
                 continue
-            } else if ch_byte == '\r' {
+            case .CR:
                 i += 1
                 continue
-            } else {
+            case .Normal:
                 // RFC 4180 violation
                 if parser.config.relaxed {
                     append(&parser.field_buffer, parser.config.quote)
@@ -210,7 +250,8 @@ parse_csv_simd :: proc(parser: ^Parser, data: string) -> bool {
 
         case .Field_End:
             // Comment line - skip to newline
-            if ch_byte == '\n' {
+            // PHASE 3: Use lookup table
+            if ch_class == .Newline {
                 state = .Field_Start
                 clear(&parser.field_buffer)
                 clear(&parser.current_row)
