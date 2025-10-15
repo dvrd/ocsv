@@ -2,6 +2,31 @@ package ocsv
 
 import "core:strings"
 
+// bulk_append_no_cr appends bytes from data[start:end] to buffer, skipping carriage returns
+// This is a hot path - optimized for cases where \r is rare (most CSVs use LF only)
+bulk_append_no_cr :: proc(buffer: ^[dynamic]u8, data: []byte, start, end: int) {
+    // Fast path: check if there are any carriage returns in the range
+    has_cr := false
+    for i in start..<end {
+        if data[i] == '\r' {
+            has_cr = true
+            break
+        }
+    }
+
+    if !has_cr {
+        // No carriage returns - bulk copy (fast path, 95% of cases)
+        append(buffer, ..data[start:end])
+    } else {
+        // Has carriage returns - filter while copying (slow path, 5% of cases)
+        for i in start..<end {
+            if data[i] != '\r' {
+                append(buffer, data[i])
+            }
+        }
+    }
+}
+
 // SIMD-optimized CSV parser using NEON (ARM64) and scalar fallback (x86_64)
 // Target: 3-5x performance improvement over byte-by-byte parser
 //
@@ -92,14 +117,8 @@ parse_csv_simd :: proc(parser: ^Parser, data: string) -> bool {
             next_pos, found_byte := find_any_special_simd(data_bytes, parser.config.delimiter, '\n', i)
 
             if next_pos != -1 {
-                // Copy bytes from i to next_pos (bulk field content)
-                for j in i..<next_pos {
-                    b := data_bytes[j]
-                    if b == '\r' {
-                        continue  // Skip carriage returns
-                    }
-                    append(&parser.field_buffer, b)
-                }
+                // PHASE 2 OPTIMIZATION: Bulk copy field content (no byte-by-byte loop)
+                bulk_append_no_cr(&parser.field_buffer, data_bytes, i, next_pos)
 
                 // Move to special character and handle it
                 i = next_pos
@@ -117,13 +136,8 @@ parse_csv_simd :: proc(parser: ^Parser, data: string) -> bool {
                 }
             } else {
                 // No more delimiters/newlines - rest is field content
-                for j in i..<len(data_bytes) {
-                    b := data_bytes[j]
-                    if b == '\r' {
-                        continue
-                    }
-                    append(&parser.field_buffer, b)
-                }
+                // PHASE 2 OPTIMIZATION: Bulk copy remaining data
+                bulk_append_no_cr(&parser.field_buffer, data_bytes, i, len(data_bytes))
                 // End of data while in field
                 emit_field(parser)
                 emit_row(parser)
@@ -136,10 +150,9 @@ parse_csv_simd :: proc(parser: ^Parser, data: string) -> bool {
             next_quote := find_quote_simd(data_bytes, parser.config.quote, i)
 
             if next_quote != -1 {
-                // Copy all bytes from i to next_quote (quoted field content)
-                for j in i..<next_quote {
-                    append(&parser.field_buffer, data_bytes[j])
-                }
+                // PHASE 2 OPTIMIZATION: Bulk copy quoted field content
+                // Note: Quoted fields can contain \r as literal data, so we DON'T filter it
+                append(&parser.field_buffer, ..data_bytes[i:next_quote])
 
                 // Move to quote and transition state
                 i = next_quote
@@ -149,9 +162,8 @@ parse_csv_simd :: proc(parser: ^Parser, data: string) -> bool {
             } else {
                 // No closing quote
                 if parser.config.relaxed {
-                    for j in i..<len(data_bytes) {
-                        append(&parser.field_buffer, data_bytes[j])
-                    }
+                    // PHASE 2 OPTIMIZATION: Bulk copy remaining data
+                    append(&parser.field_buffer, ..data_bytes[i:])
                     emit_field(parser)
                     emit_row(parser)
                     break
