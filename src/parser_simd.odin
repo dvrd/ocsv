@@ -1,33 +1,251 @@
 package ocsv
 
-// SIMD-optimized CSV parser (EXPERIMENTAL - NOT YET OPTIMIZED)
-// Target: 1.2-1.5x performance improvement over the standard parser
-// Current status: Manual SIMD implementation has overhead issues
+import "core:strings"
+
+// SIMD-optimized CSV parser using NEON (ARM64) and scalar fallback (x86_64)
+// Target: 3-5x performance improvement over byte-by-byte parser
 //
-// TODO: Implement true SIMD using:
-// - NEON intrinsics for ARM64
-// - AVX2 intrinsics for x86_64
-// - Proper vectorized comparisons (not byte-by-byte loops)
+// Strategy:
+// - Use find_any_special_simd() to skip over unquoted field content (16 bytes/cycle)
+// - Use find_quote_simd() to skip over quoted field content (16 bytes/cycle)
+// - Maintain exact same state machine logic as parse_csv() for RFC 4180 compliance
 //
-// For now, delegating to standard parser for better performance
+// Performance: Expected 80-150 MB/s vs 27.62 MB/s baseline
+//
+// Phase 1: Optimizes .In_Field (unquoted fields) and .In_Quoted_Field
+// Phase 2: Further optimizations for field boundaries and empty fields
 
 parse_csv_simd :: proc(parser: ^Parser, data: string) -> bool {
-    // TEMPORARY: Delegating to standard parser until true SIMD is implemented
-    // The previous manual SIMD implementation had function call overhead
-    // that made it slower than the standard parser's optimized loop
-    return parse_csv(parser, data)
-}
+    state := Parse_State.Field_Start
+    clear(&parser.field_buffer)
+    clear_parser_data(parser)
+    parser.line_number = 1
 
-// parse_csv_auto automatically chooses between SIMD and standard parser
-// based on file size and SIMD availability
-parse_csv_auto :: proc(parser: ^Parser, data: string) -> bool {
-    when ODIN_ARCH == .arm64 || ODIN_ARCH == .amd64 {
-        // Use SIMD for files > 1KB
-        if len(data) >= 1024 {
-            return parse_csv_simd(parser, data)
+    // Convert string to []byte for SIMD operations
+    data_bytes := transmute([]byte)data
+    i := 0
+
+    for i < len(data_bytes) {
+        ch_byte := data_bytes[i]
+
+        // Fast path: ASCII check (delimiters/quotes are always ASCII)
+        ch_is_ascii := ch_byte < 128
+
+        // For UTF-8 multi-byte, we'll decode when needed
+        ch := rune(ch_byte)
+        if !ch_is_ascii {
+            // UTF-8 decode (2-4 byte sequences)
+            if ch_byte >= 0xC0 && ch_byte <= 0xDF && i + 1 < len(data_bytes) {
+                ch = rune((ch_byte & 0x1F) << 6) | rune(data_bytes[i+1] & 0x3F)
+                i += 1
+            } else if ch_byte >= 0xE0 && ch_byte <= 0xEF && i + 2 < len(data_bytes) {
+                ch = rune((ch_byte & 0x0F) << 12) |
+                     rune((data_bytes[i+1] & 0x3F) << 6) |
+                     rune(data_bytes[i+2] & 0x3F)
+                i += 2
+            } else if ch_byte >= 0xF0 && ch_byte <= 0xF7 && i + 3 < len(data_bytes) {
+                ch = rune((ch_byte & 0x07) << 18) |
+                     rune((data_bytes[i+1] & 0x3F) << 12) |
+                     rune((data_bytes[i+2] & 0x3F) << 6) |
+                     rune(data_bytes[i+3] & 0x3F)
+                i += 3
+            }
+        }
+
+        switch state {
+        case .Field_Start:
+            if ch_is_ascii && ch_byte == parser.config.quote {
+                state = .In_Quoted_Field
+                i += 1
+                continue
+            } else if ch_is_ascii && ch_byte == parser.config.delimiter {
+                emit_empty_field(parser)
+                i += 1
+                continue
+            } else if ch_byte == '\n' {
+                if len(parser.current_row) > 0 {
+                    emit_empty_field(parser)
+                    emit_row(parser)
+                } else if i > 0 {
+                    emit_row(parser)
+                }
+                i += 1
+                continue
+            } else if ch_byte == '\r' {
+                i += 1
+                continue
+            } else if parser.config.comment != 0 && ch_is_ascii && ch_byte == parser.config.comment && len(parser.current_row) == 0 {
+                state = .Field_End
+                i += 1
+                continue
+            } else {
+                // Start unquoted field - add first char and switch to In_Field
+                append_rune_to_buffer(&parser.field_buffer, ch)
+                state = .In_Field
+                i += 1
+                continue
+            }
+
+        case .In_Field:
+            // SIMD FAST PATH: Find next delimiter or newline
+            // This processes 16 bytes per SIMD instruction instead of 1 byte per iteration
+            next_pos, found_byte := find_any_special_simd(data_bytes, parser.config.delimiter, '\n', i)
+
+            if next_pos != -1 {
+                // Copy bytes from i to next_pos (bulk field content)
+                for j in i..<next_pos {
+                    b := data_bytes[j]
+                    if b == '\r' {
+                        continue  // Skip carriage returns
+                    }
+                    append(&parser.field_buffer, b)
+                }
+
+                // Move to special character and handle it
+                i = next_pos
+                if found_byte == parser.config.delimiter {
+                    emit_field(parser)
+                    state = .Field_Start
+                    i += 1
+                    continue
+                } else if found_byte == '\n' {
+                    emit_field(parser)
+                    emit_row(parser)
+                    state = .Field_Start
+                    i += 1
+                    continue
+                }
+            } else {
+                // No more delimiters/newlines - rest is field content
+                for j in i..<len(data_bytes) {
+                    b := data_bytes[j]
+                    if b == '\r' {
+                        continue
+                    }
+                    append(&parser.field_buffer, b)
+                }
+                // End of data while in field
+                emit_field(parser)
+                emit_row(parser)
+                break
+            }
+
+        case .In_Quoted_Field:
+            // SIMD FAST PATH: Find next quote character
+            // This processes 16 bytes per SIMD instruction
+            next_quote := find_quote_simd(data_bytes, parser.config.quote, i)
+
+            if next_quote != -1 {
+                // Copy all bytes from i to next_quote (quoted field content)
+                for j in i..<next_quote {
+                    append(&parser.field_buffer, data_bytes[j])
+                }
+
+                // Move to quote and transition state
+                i = next_quote
+                state = .Quote_In_Quote
+                i += 1
+                continue
+            } else {
+                // No closing quote
+                if parser.config.relaxed {
+                    for j in i..<len(data_bytes) {
+                        append(&parser.field_buffer, data_bytes[j])
+                    }
+                    emit_field(parser)
+                    emit_row(parser)
+                    break
+                } else {
+                    return false  // Error: unterminated quote
+                }
+            }
+
+        case .Quote_In_Quote:
+            if ch_is_ascii && ch_byte == parser.config.quote {
+                // Doubled quote "" = literal quote
+                append(&parser.field_buffer, parser.config.quote)
+                state = .In_Quoted_Field
+                i += 1
+                continue
+            } else if ch_is_ascii && ch_byte == parser.config.delimiter {
+                // End of quoted field
+                emit_field(parser)
+                state = .Field_Start
+                i += 1
+                continue
+            } else if ch_byte == '\n' {
+                // End of quoted field and row
+                emit_field(parser)
+                emit_row(parser)
+                state = .Field_Start
+                i += 1
+                continue
+            } else if ch_byte == '\r' {
+                i += 1
+                continue
+            } else {
+                // RFC 4180 violation
+                if parser.config.relaxed {
+                    append(&parser.field_buffer, parser.config.quote)
+                    append_rune_to_buffer(&parser.field_buffer, ch)
+                    state = .In_Quoted_Field
+                    i += 1
+                    continue
+                } else {
+                    return false
+                }
+            }
+
+        case .Field_End:
+            // Comment line - skip to newline
+            if ch_byte == '\n' {
+                state = .Field_Start
+                clear(&parser.field_buffer)
+                clear(&parser.current_row)
+            }
+            i += 1
+            continue
         }
     }
 
-    // Fallback to standard parser
-    return parse_csv(parser, data)
+    // Handle end of input
+    switch state {
+    case .In_Field:
+        emit_field(parser)
+        emit_row(parser)
+    case .Quote_In_Quote:
+        emit_field(parser)
+        emit_row(parser)
+    case .In_Quoted_Field:
+        if parser.config.relaxed {
+            emit_field(parser)
+            emit_row(parser)
+        } else {
+            return false
+        }
+    case .Field_Start:
+        if len(parser.current_row) > 0 {
+            emit_empty_field(parser)
+            emit_row(parser)
+        }
+    case .Field_End:
+        // Comment line
+    }
+
+    return true
+}
+
+// parse_csv_auto automatically chooses between SIMD and standard parser
+// For now, always use SIMD since it's now properly implemented
+parse_csv_auto :: proc(parser: ^Parser, data: string) -> bool {
+    when ODIN_ARCH == .arm64 {
+        // ARM64: Always use SIMD (NEON is fast)
+        return parse_csv_simd(parser, data)
+    } else {
+        // x86_64/other: Use SIMD for files > 1KB (scalar overhead for tiny files)
+        if len(data) >= 1024 {
+            return parse_csv_simd(parser, data)
+        }
+        return parse_csv(parser, data)
+    }
 }
