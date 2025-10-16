@@ -91,7 +91,7 @@ jobs:
         if: matrix.os == 'windows-2022'
         shell: cmd
         run: |
-          cd %TEMP%
+          cd %RUNNER_TEMP%
           git clone --depth=1 https://github.com/odin-lang/Odin.git
           cd Odin
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
@@ -100,15 +100,15 @@ jobs:
             echo ERROR: odin.exe was not built!
             exit /b 1
           )
-          echo SUCCESS: odin.exe built at %TEMP%\Odin\odin.exe
+          echo SUCCESS: odin.exe built at %RUNNER_TEMP%\Odin\odin.exe
+          %RUNNER_TEMP%\Odin\odin.exe version
 
       - name: Build library (Windows)
         if: matrix.os == 'windows-2022'
         shell: cmd
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          %TEMP%\Odin\odin.exe version
-          %TEMP%\Odin\odin.exe build src -build-mode:shared -out:${{ matrix.lib_name }} -o:speed
+          %RUNNER_TEMP%\Odin\odin.exe build src -build-mode:shared -out:${{ matrix.lib_name }} -o:speed
 
       # Create prebuild structure
       - name: Prepare prebuild directory
