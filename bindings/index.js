@@ -13,6 +13,7 @@ import { fileURLToPath } from "url";
 import { existsSync } from "fs";
 import os from "os";
 import { OcsvError, ParseErrorCode } from "./errors.js";
+import { LazyRow, LazyResult } from "./lazy.js";
 
 /**
  * Detect the current platform and architecture
@@ -282,12 +283,12 @@ export class Parser {
 	 * @throws {OcsvError} If parsing fails
 	 */
 	parse(data, options = {}) {
-		// Apply configuration before parsing (Phase 1)
+		// Apply configuration before parsing
 		this._applyConfig(options);
 		const buffer = Buffer.from(data + '\0');
 		const parseResult = lib.symbols.ocsv_parse_string(this.parser, ptr(buffer), data.length);
 
-		// Check for errors after parsing (Phase 1)
+		// Check for errors after parsing
 		if (parseResult !== 0 || lib.symbols.ocsv_has_error(this.parser)) {
 			const errorCode = lib.symbols.ocsv_get_error_code(this.parser);
 			const errorLine = lib.symbols.ocsv_get_error_line(this.parser);
@@ -297,6 +298,58 @@ export class Parser {
 		}
 
 		const rowCount = lib.symbols.ocsv_get_row_count(this.parser);
+
+		// Check for lazy mode
+		if (options.mode === 'lazy') {
+			return this._parseLazy(rowCount, options);
+		}
+
+		// Default: eager mode
+		return this._parseEager(rowCount, options);
+	}
+
+	/**
+	 * Parse in lazy mode - returns LazyResult with on-demand row access
+	 * @private
+	 * @param {number} rowCount - Total number of rows
+	 * @param {ParseOptions} options - Parsing options
+	 * @returns {LazyResult} Lazy result accessor
+	 */
+	_parseLazy(rowCount, options) {
+		let headers = null;
+
+		// Handle header row if requested
+		if (options.hasHeader && rowCount > 0) {
+			const headerRow = new LazyRow(this.parser, 0);
+			headers = headerRow.toArray();
+
+			// Create LazyResult starting from row 1 (data rows only)
+			// Note: User will call getRow(0) to access first data row
+			return new LazyResult(
+				this.parser,
+				rowCount - 1,  // Exclude header from count
+				headers,
+				options
+			);
+		}
+
+		// No header
+		return new LazyResult(
+			this.parser,
+			rowCount,
+			null,
+			options
+		);
+	}
+
+	/**
+	 * Parse in eager mode - materializes all rows into arrays
+	 * @private
+	 * @param {number} rowCount - Total number of rows
+	 * @param {ParseOptions} options - Parsing options
+	 * @returns {ParseResult} Eager result with all rows
+	 */
+	_parseEager(rowCount, options) {
 		const rows = [];
 
 		for (let i = 0; i < rowCount; i++) {
@@ -350,21 +403,39 @@ export class Parser {
 
 /**
  * Convenience function to parse CSV string
- * Automatically manages parser lifecycle
+ * Automatically manages parser lifecycle (except in lazy mode)
  *
  * @param {string} data - CSV data
  * @param {ParseOptions} [options={}] - Parsing options
- * @returns {ParseResult} Parsed CSV data
+ * @returns {ParseResult | LazyResult} Parsed CSV data
  *
- * @example
+ * @example Eager mode (automatic cleanup)
  * import { parseCSV } from 'ocsv';
  *
  * const result = parseCSV('name,age\nJohn,30\nJane,25', { hasHeader: true });
  * console.log(result.headers); // ['name', 'age']
  * console.log(result.rows);    // [['John', '30'], ['Jane', '25']]
+ *
+ * @example Lazy mode (manual cleanup required)
+ * const result = parseCSV(data, { mode: 'lazy' });
+ * try {
+ *   const row = result.getRow(5000);
+ *   console.log(row.toArray());
+ * } finally {
+ *   result.destroy();  // MUST call destroy()
+ * }
  */
 export function parseCSV(data, options = {}) {
 	const parser = new Parser();
+
+	// Check for lazy mode
+	if (options.mode === 'lazy') {
+		// IMPORTANT: Do NOT destroy parser!
+		// LazyResult owns it now - user must call result.destroy()
+		return parser.parse(data, options);
+	}
+
+	// Eager mode: cleanup immediately
 	try {
 		return parser.parse(data, options);
 	} finally {
@@ -400,3 +471,6 @@ export { Parser as OCSVParser };
 
 // Export error handling classes (Phase 1)
 export { OcsvError, ParseErrorCode };
+
+// Export lib for internal use by lazy.js
+export { lib };
