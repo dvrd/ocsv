@@ -41,8 +41,7 @@
   "scripts": {
     "build": "task build",
     "test": "bun test",
-    "bench": "bun run benchmarks/benchmark.js",
-    "prepublishOnly": "task build"
+    "bench": "bun run benchmarks/benchmark.js"
   },
   "files": [
     "bindings/",
