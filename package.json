@@ -1,6 +1,6 @@
 {
   "name": "ocsv",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "High-performance RFC 4180 compliant CSV parser written in Odin with zero-copy FFI bindings for Bun",
   "main": "bindings/index.js",
   "types": "bindings/index.d.ts",
@@ -10,7 +10,8 @@
   },
   "os": [
     "darwin",
-    "linux"
+    "linux",
+    "win32"
   ],
   "cpu": [
     "x64",

@@ -1,0 +1,225 @@
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build:
+    name: Build (${{ matrix.platform }}-${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS ARM64 (Apple Silicon)
+          - os: macos-14
+            platform: darwin
+            arch: arm64
+            lib_name: libocsv.dylib
+
+          # macOS x64 (Intel)
+          - os: macos-13
+            platform: darwin
+            arch: x64
+            lib_name: libocsv.dylib
+
+          # Linux x64
+          - os: ubuntu-latest
+            platform: linux
+            arch: x64
+            lib_name: libocsv.so
+
+          # Windows x64
+          - os: windows-2022
+            platform: win32
+            arch: x64
+            lib_name: ocsv.dll
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # macOS setup
+      - name: Download LLVM (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          brew update
+          brew install llvm@20
+          echo "$(brew --prefix llvm@20)/bin" >> $GITHUB_PATH
+
+      - name: Clone and Build Odin (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          cd /tmp
+          git clone --depth=1 https://github.com/odin-lang/Odin.git
+          cd Odin
+          ./build_odin.sh release
+          echo "/tmp/Odin" >> $GITHUB_PATH
+
+      - name: Build library (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: odin build src -build-mode:shared -out:${{ matrix.lib_name }} -o:speed
+
+      # Linux setup
+      - name: Download LLVM (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 20
+          echo "/usr/lib/llvm-20/bin" >> $GITHUB_PATH
+
+      - name: Clone and Build Odin (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cd /tmp
+          git clone --depth=1 https://github.com/odin-lang/Odin.git
+          cd Odin
+          ./build_odin.sh release
+          echo "/tmp/Odin" >> $GITHUB_PATH
+
+      - name: Build library (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: odin build src -build-mode:shared -out:${{ matrix.lib_name }} -o:speed
+
+      # Windows setup
+      - name: Clone and Build Odin (Windows)
+        if: matrix.os == 'windows-2022'
+        shell: cmd
+        run: |
+          cd %TEMP%
+          git clone --depth=1 https://github.com/odin-lang/Odin.git
+          cd Odin
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          build.bat 1
+
+      - name: Add Odin to PATH (Windows)
+        if: matrix.os == 'windows-2022'
+        shell: powershell
+        run: |
+          echo "$env:TEMP\Odin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Build library (Windows)
+        if: matrix.os == 'windows-2022'
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          odin build src -build-mode:shared -out:${{ matrix.lib_name }} -o:speed
+
+      # Create prebuild structure
+      - name: Prepare prebuild directory
+        shell: bash
+        run: |
+          mkdir -p prebuilds/${{ matrix.platform }}-${{ matrix.arch }}
+          cp ${{ matrix.lib_name }} prebuilds/${{ matrix.platform }}-${{ matrix.arch }}/
+
+      # Verify library was created
+      - name: Verify library
+        shell: bash
+        run: |
+          if [ -f "prebuilds/${{ matrix.platform }}-${{ matrix.arch }}/${{ matrix.lib_name }}" ]; then
+            echo "✓ Library prepared: prebuilds/${{ matrix.platform }}-${{ matrix.arch }}/${{ matrix.lib_name }}"
+            ls -lh prebuilds/${{ matrix.platform }}-${{ matrix.arch }}/${{ matrix.lib_name }}
+          else
+            echo "✗ Library not found!"
+            exit 1
+          fi
+
+      # Upload prebuild as artifact
+      - name: Upload prebuild artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: prebuild-${{ matrix.platform }}-${{ matrix.arch }}
+          path: prebuilds/${{ matrix.platform }}-${{ matrix.arch }}/${{ matrix.lib_name }}
+          retention-days: 1
+
+  publish:
+    name: Publish to npm
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: read
+      id-token: write  # Required for npm provenance
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Download all prebuilt binaries
+      - name: Download darwin-arm64 prebuild
+        uses: actions/download-artifact@v4
+        with:
+          name: prebuild-darwin-arm64
+          path: prebuilds/darwin-arm64
+
+      - name: Download darwin-x64 prebuild
+        uses: actions/download-artifact@v4
+        with:
+          name: prebuild-darwin-x64
+          path: prebuilds/darwin-x64
+
+      - name: Download linux-x64 prebuild
+        uses: actions/download-artifact@v4
+        with:
+          name: prebuild-linux-x64
+          path: prebuilds/linux-x64
+
+      - name: Download win32-x64 prebuild
+        uses: actions/download-artifact@v4
+        with:
+          name: prebuild-win32-x64
+          path: prebuilds/win32-x64
+
+      # Verify all prebuilds
+      - name: Verify prebuilds
+        run: |
+          echo "=== Prebuilds Directory Structure ==="
+          ls -lhR prebuilds/
+          echo ""
+          echo "=== Checking for required files ==="
+          for platform in darwin-arm64 darwin-x64 linux-x64 win32-x64; do
+            if [ -d "prebuilds/$platform" ] && [ -n "$(ls -A prebuilds/$platform)" ]; then
+              echo "✓ $platform prebuild exists"
+            else
+              echo "✗ $platform prebuild missing!"
+              exit 1
+            fi
+          done
+
+      # Setup Bun (for tests)
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      # Install dependencies and run tests
+      - name: Install dependencies
+        run: bun install --production
+
+      # Setup Node.js (required for npm publish)
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          registry-url: 'https://registry.npmjs.org'
+
+      # Publish to npm with provenance
+      - name: Publish to npm
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # Create GitHub release with prebuilds
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: prebuilds/**/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

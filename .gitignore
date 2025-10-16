@@ -70,5 +70,8 @@ temp/
 .claude/
 CLAUDE.md
 
+# Jujutsu VCS
+.jj/
+
 # Documentation backups
 docs.backup-*/

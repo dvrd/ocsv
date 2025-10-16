@@ -1,0 +1,63 @@
+# Development files
+src/
+tests/
+plugins/
+examples/
+benchmarks/
+docs/
+
+# Build artifacts
+*.o
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.lib
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Development tools
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Task files
+Taskfile.yml
+Taskfile.yaml
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation (not needed in npm package)
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+CLAUDE.md
+
+# Test data
+*.csv
+test_*.txt
+
+# Jujutsu VCS
+.jj/
+
+# Claude config
+.claude/
+
+# Root library (use prebuilds instead)
+libocsv.dylib
+libocsv.so
+ocsv.dll
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

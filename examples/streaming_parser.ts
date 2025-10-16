@@ -13,7 +13,7 @@ import { dlopen, FFIType, suffix, CFunction } from "bun:ffi";
 import { writeFileSync } from "fs";
 
 // Load the OCSV library with streaming functions
-const lib = dlopen(`../libcsv.${suffix}`, {
+const lib = dlopen(`../libocsv.${suffix}`, {
   // Streaming parser
   streaming_parser_create: {
     args: [FFIType.ptr], // config
