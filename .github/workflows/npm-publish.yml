@@ -108,7 +108,7 @@ jobs:
         shell: cmd
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          odin build src -build-mode:shared -out:${{ matrix.lib_name }} -o:speed
+          %TEMP%\Odin\odin.exe build src -build-mode:shared -out:${{ matrix.lib_name }} -o:speed
 
       # Create prebuild structure
       - name: Prepare prebuild directory
