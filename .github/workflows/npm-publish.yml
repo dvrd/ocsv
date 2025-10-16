@@ -144,7 +144,7 @@ jobs:
     timeout-minutes: 10
 
     permissions:
-      contents: read
+      contents: write  # Required for GitHub release creation
       id-token: write  # Required for npm provenance
 
     steps:
