@@ -185,6 +185,8 @@ parser_extended_destroy :: proc(parser: ^Parser_Extended) {
     }
     delete(parser.current_row)
 
+    delete(parser.warnings)
+
     free(parser)
 }
 
