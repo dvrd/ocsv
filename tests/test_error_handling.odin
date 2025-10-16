@@ -330,8 +330,8 @@ test_collect_all_errors :: proc(t: ^testing.T) {
     fmt.printfln("Collected %d errors:", len(result.warnings))
     for warning, i in result.warnings {
         err_msg := ocsv.format_error(warning)
-        defer delete(err_msg)
         fmt.printfln("  %d: %s", i+1, err_msg)
+        delete(err_msg)
     }
 }
 
