@@ -1,7 +1,8 @@
 # OCSV - Odin CSV Parser
 
-A high-performance, RFC 4180 compliant CSV parser written in Odin with Bun FFI support.
+A high-performance, RFC 4180 compliant CSV parser written in Odin with Bun FFI support. Now available on npm with cross-platform prebuilt binaries.
 
+[![npm version](https://img.shields.io/npm/v/ocsv)](https://www.npmjs.com/package/ocsv)
 [![Tests](https://img.shields.io/badge/tests-203%2F203%20passing-brightgreen)]()
 [![Pass Rate](https://img.shields.io/badge/pass%20rate-100%25-brightgreen)]()
 [![Memory Leaks](https://img.shields.io/badge/memory%20leaks-0-brightgreen)]()
@@ -14,28 +15,6 @@ A high-performance, RFC 4180 compliant CSV parser written in Odin with Bun FFI s
 [![Linux](https://img.shields.io/badge/Linux-x86__64-blue)]()
 [![Windows](https://img.shields.io/badge/Windows-x86__64-blue)]()
 [![CI/CD](https://img.shields.io/badge/CI%2FCD-passing-brightgreen)](https://github.com/dvrd/ocsv/actions)
-
-## Status
-
-✅ **Phase 0 Complete** - Production-ready, stress tested, SIMD optimized
-
-- ✅ PRP-00: Foundation (basic parsing, FFI bindings)
-- ✅ PRP-01: RFC 4180 Edge Cases (full compliance)
-- ✅ PRP-02: Enhanced Testing (203 tests total, 100% pass rate, 0 memory leaks)
-- ✅ PRP-03: Documentation (complete)
-- ✅ PRP-04: Windows/Linux Support (cross-platform builds, CI/CD)
-- ✅ PRP-05: ARM64/NEON SIMD (21% performance boost)
-- ✅ PRP-06: Error Handling & Recovery (11 error types, 4 recovery strategies, warnings system)
-- ✅ PRP-07: Schema Validation (6 types, 9 rules, type conversion)
-- ✅ PRP-08: Streaming API (memory-efficient, chunk-based processing)
-- ✅ PRP-09: Advanced Transformations (12 built-in transforms, pipelines, plugin system)
-- ✅ PRP-10: Parallel Processing (multi-threaded parsing, functional, optimization complete)
-- ✅ PRP-11: Plugin Architecture (4 plugin types, 3 example plugins, full extensibility)
-- ✅ PRP-12: Code Quality & Consolidation (9.9/10 quality score, comprehensive audit)
-- ✅ PRP-13: SIMD Optimization (ARM NEON implemented, 158 MB/s parser)
-- ✅ PRP-14: Enhanced Testing (203 tests, stress testing, endurance tests)
-
-**Production-ready with Phase 0 complete.** 203/203 tests passing (100%), 0 memory leaks, 9.9/10 code quality.
 
 ## Features
 
@@ -498,13 +477,13 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Contact
 
-- **Issues:** [GitHub Issues](https://github.com/yourusername/ocsv/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/yourusername/ocsv/discussions)
+- **Issues:** [GitHub Issues](https://github.com/dvrd/ocsv/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/dvrd/ocsv/discussions)
 
 ---
 
 **Built with ❤️ using Odin + Bun**
 
-**Version:** 0.11.0 (Phase 4: Plugin Architecture - Complete)
+**Version:** 1.0.0 - Production Release
 
-**Last Updated:** 2025-10-14
+**Last Updated:** 2025-10-16
