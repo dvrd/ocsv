@@ -120,6 +120,8 @@ export class LazyResult {
 		this._rowCache = new Map();  // LRU cache: rowIndex → LazyRow
 		this._destroyed = false;
 		this._maxCacheSize = 1000;  // Keep 1000 hot rows
+		// Offset for header row: if headers exist, skip row 0 in parser
+		this._rowOffset = headers ? 1 : 0;
 	}
 
 	get rowCount() {
@@ -150,8 +152,9 @@ export class LazyResult {
 			return row;
 		}
 
-		// Create new LazyRow
-		const row = new LazyRow(this._parser, index);
+		// Create new LazyRow with offset for header
+		const parserIndex = index + this._rowOffset;
+		const row = new LazyRow(this._parser, parserIndex);
 		this._rowCache.set(index, row);
 
 		// Evict LRU if cache full

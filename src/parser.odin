@@ -91,8 +91,8 @@ clear_parser_data :: proc(parser: ^Parser) {
 // parse_csv performs RFC 4180 compliant CSV parsing with full edge case handling
 // Automatically uses SIMD when available for optimal performance
 parse_csv :: proc(parser: ^Parser, data: string) -> bool {
-    // Use SIMD-optimized version (falls back to scalar on small files or non-SIMD archs)
-    return parse_csv_auto(parser, data)
+    // TEMPORARY: Use scalar parser to debug issue
+    return parse_csv_scalar(parser, data)
 }
 
 // parse_csv_scalar is the original byte-by-byte parser (kept for comparison/fallback)

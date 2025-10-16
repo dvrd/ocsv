@@ -299,6 +299,6 @@ parse_csv_auto :: proc(parser: ^Parser, data: string) -> bool {
         if len(data) >= 1024 {
             return parse_csv_simd(parser, data)
         }
-        return parse_csv(parser, data)
+        return parse_csv_scalar(parser, data)
     }
 }

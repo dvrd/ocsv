@@ -192,6 +192,237 @@ try {
 }
 ```
 
+## Performance Modes
+
+OCSV offers two access modes to optimize for different use cases:
+
+### Mode Comparison
+
+| Feature | Eager Mode (default) | Lazy Mode |
+|---------|---------------------|-----------|
+| **Performance** | ~8 MB/s throughput | **≥180 MB/s** (22x faster) |
+| **Memory Usage** | High (all data in JS) | **Low** (<200 MB for 10M rows) |
+| **Parse Time (10M rows)** | ~150s | **<7s** (21x faster) |
+| **Access Pattern** | Random access, arrays | Random access, on-demand |
+| **Memory Management** | Automatic (GC) | **Manual** (`destroy()` required) |
+| **Best For** | Small files, full iteration | Large files, selective access |
+| **TypeScript Support** | Full | Full (discriminated unions) |
+
+### Eager Mode (Default)
+
+**Best for:** Small to medium files (<100k rows), full dataset iteration, simple workflows
+
+All rows are materialized into JavaScript arrays immediately. Easy to use, no cleanup required.
+
+```typescript
+import { parseCSV } from 'ocsv';
+
+// Default: eager mode
+const result = parseCSV(data, { hasHeader: true });
+
+console.log(result.headers);   // ['name', 'age', 'city']
+console.log(result.rows);      // [['Alice', '30', 'NYC'], ...]
+console.log(result.rowCount);  // 2
+
+// Arrays: standard JavaScript operations
+result.rows.forEach(row => console.log(row));
+result.rows.map(row => row[0]);
+result.rows.filter(row => row[1] > '25');
+```
+
+**Pros:**
+- ✅ Simple API - standard JavaScript arrays
+- ✅ No manual cleanup required
+- ✅ Familiar array methods (map, filter, slice)
+- ✅ Safe for GC-managed memory
+
+**Cons:**
+- ❌ Slower for large files (7.5x overhead)
+- ❌ High memory usage (all rows in JS heap)
+- ❌ Parse time proportional to data crossing FFI boundary
+
+### Lazy Mode (High Performance)
+
+**Best for:** Large files (>1M rows), selective access, memory-constrained environments
+
+Rows stay in native Odin memory and are accessed on-demand. Achieves near-FFI performance with minimal memory footprint.
+
+```typescript
+import { parseCSV } from 'ocsv';
+
+// Lazy mode: high performance
+const result = parseCSV(data, {
+  mode: 'lazy',
+  hasHeader: true
+});
+
+try {
+  console.log(result.headers);   // ['name', 'age', 'city']
+  console.log(result.rowCount);  // 10000000
+
+  // On-demand row access
+  const row = result.getRow(5000000);
+  console.log(row.get(0));       // 'Alice'
+  console.log(row.get(1));       // '30'
+
+  // Iterate fields
+  for (const field of row) {
+    console.log(field);
+  }
+
+  // Materialize row to array (when needed)
+  const arr = row.toArray();     // ['Alice', '30', 'NYC']
+
+  // Efficient slicing (generator)
+  for (const row of result.slice(1000, 2000)) {
+    console.log(row.get(0));
+  }
+
+  // Full iteration (if needed)
+  for (const row of result) {
+    console.log(row.get(0));
+  }
+
+} finally {
+  // CRITICAL: Must cleanup native memory
+  result.destroy();
+}
+```
+
+**Pros:**
+- ✅ **22x faster** parse time than eager mode
+- ✅ **Low memory** footprint (<200 MB for 10M rows)
+- ✅ LRU cache (1000 hot rows) for repeated access
+- ✅ Generator-based slicing (memory efficient)
+- ✅ Random access to any row (O(1) after cache)
+
+**Cons:**
+- ❌ **Manual cleanup required** (`destroy()` must be called)
+- ❌ Not standard arrays (use `.get(i)` or `.toArray()`)
+- ❌ Use-after-destroy throws errors
+
+### When to Use Each Mode
+
+```
+                    Start
+                      |
+           Is file size > 100MB or > 1M rows?
+                 /         \
+               Yes          No
+                |            |
+         Do you need to    Use Eager Mode
+         access all rows?   (simple, safe)
+              /    \
+            No     Yes
+             |      |
+        Lazy Mode  Memory constrained?
+     (fast, low     /              \
+      memory)     Yes               No
+                   |                 |
+              Lazy Mode         Try Eager first
+           (streaming)        (measure, switch if slow)
+```
+
+**Use Lazy Mode when:**
+- File size > 100 MB or > 1M rows
+- You need selective row access (not full iteration)
+- Memory is constrained (< 1 GB available)
+- You're building streaming/ETL pipelines
+- You need maximum parsing performance
+
+**Use Eager Mode when:**
+- File size < 100 MB or < 1M rows
+- You need full dataset iteration
+- You prefer simpler API (standard arrays)
+- Memory cleanup must be automatic (GC)
+- You're prototyping or writing quick scripts
+
+### Performance Benchmarks
+
+**Test Setup:** 10M rows, 4 columns, 1.2 GB CSV file
+
+```
+Mode          Parse Time    Throughput    Memory Usage
+────────────────────────────────────────────────────────
+FFI Direct    6.2s          193 MB/s      50 MB (baseline)
+Lazy Mode     6.8s          176 MB/s      <200 MB
+Eager Mode    151.7s        7.9 MB/s      ~8 GB
+```
+
+**Key Metrics:**
+- Lazy mode is **22x faster** than eager mode
+- Lazy mode uses **40x less memory** than eager mode
+- Lazy mode is **only 9% slower** than raw FFI (acceptable overhead)
+
+### Memory Management
+
+#### Eager Mode
+```typescript
+// Automatic cleanup via garbage collector
+const result = parseCSV(data);
+// ... use result.rows ...
+// Memory freed automatically when result goes out of scope
+```
+
+#### Lazy Mode
+```typescript
+// Manual cleanup required
+const result = parseCSV(data, { mode: 'lazy' });
+try {
+  // ... use result ...
+} finally {
+  // CRITICAL: Always call destroy()
+  result.destroy();
+}
+```
+
+**Common Pitfalls:**
+
+❌ **Forgetting to destroy:**
+```typescript
+const result = parseCSV(data, { mode: 'lazy' });
+console.log(result.getRow(0));
+// Memory leak! Parser not cleaned up
+```
+
+❌ **Use after destroy:**
+```typescript
+const result = parseCSV(data, { mode: 'lazy' });
+result.destroy();
+result.getRow(0);  // Error: LazyResult has been destroyed
+```
+
+✅ **Correct pattern:**
+```typescript
+const result = parseCSV(data, { mode: 'lazy' });
+try {
+  const row = result.getRow(0);
+  console.log(row.toArray());
+} finally {
+  result.destroy();
+}
+```
+
+### TypeScript Support
+
+OCSV provides discriminated union types for type-safe mode selection:
+
+```typescript
+import { parseCSV } from 'ocsv';
+
+// Type: ParseResult (array-based)
+const eager = parseCSV(data);
+console.log(eager.rows[0]);  // Type: string[]
+
+// Type: LazyResult (on-demand)
+const lazy = parseCSV(data, { mode: 'lazy' });
+console.log(lazy.getRow(0)); // Type: LazyRow
+
+// Compiler error: mode mismatch
+const wrong = parseCSV(data, { mode: 'lazy' });
+console.log(wrong.rows);  // Error: Property 'rows' does not exist
+```
+
 ## Configuration
 
 ```odin

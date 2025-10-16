@@ -78,10 +78,114 @@ export interface ParseOptions {
 	 * @default false
 	 */
 	hasHeader?: boolean;
+
+	/**
+	 * Access mode for parsed data
+	 * - 'eager': Materialize all rows into arrays (default, backwards compatible)
+	 * - 'lazy': On-demand row access with minimal memory (requires manual cleanup)
+	 * @default 'eager'
+	 */
+	mode?: 'eager' | 'lazy';
 }
 
 /**
- * Result of CSV parsing
+ * Lazy row accessor - fields loaded on-demand from native memory
+ *
+ * @example
+ * ```typescript
+ * const row = result.getRow(100);
+ * console.log(row.get(0));      // Access field 0
+ * console.log([...row]);        // Iterate all fields
+ * console.log(row.toArray());   // Materialize to array
+ * ```
+ */
+export class LazyRow implements Iterable<string> {
+	/** Number of fields in this row */
+	readonly length: number;
+
+	/**
+	 * Access a field by index
+	 * @param fieldIndex - 0-based field index
+	 * @returns Field value as string
+	 * @throws {RangeError} If index out of bounds
+	 */
+	get(fieldIndex: number): string;
+
+	/** Iterate over all fields */
+	[Symbol.iterator](): Iterator<string>;
+
+	/** Materialize all fields to array */
+	toArray(): string[];
+
+	/** Map over fields */
+	map<T>(fn: (field: string, index: number) => T): T[];
+
+	/** Filter fields */
+	filter(fn: (field: string, index: number) => boolean): string[];
+
+	/** Slice fields */
+	slice(start?: number, end?: number): string[];
+}
+
+/**
+ * Lazy result accessor - rows loaded on-demand from native memory
+ *
+ * CRITICAL: Must call destroy() when done to free native memory
+ *
+ * @example
+ * ```typescript
+ * const result = parseCSV(data, { mode: 'lazy' });
+ * try {
+ *   for (const row of result) {
+ *     console.log(row.toArray());
+ *   }
+ * } finally {
+ *   result.destroy();  // MUST cleanup
+ * }
+ * ```
+ */
+export class LazyResult implements Iterable<LazyRow> {
+	/** Total number of data rows (excluding header) */
+	readonly rowCount: number;
+
+	/** Header row if hasHeader option was true */
+	readonly headers?: string[];
+
+	/**
+	 * Access a row by index
+	 * @param index - 0-based row index
+	 * @returns Lazy row accessor
+	 * @throws {RangeError} If index out of bounds
+	 * @throws {Error} If result has been destroyed
+	 */
+	getRow(index: number): LazyRow;
+
+	/** Iterate over all rows */
+	[Symbol.iterator](): Iterator<LazyRow>;
+
+	/**
+	 * Iterate over a range of rows (lazy)
+	 * @param start - Start index (inclusive)
+	 * @param end - End index (exclusive)
+	 * @returns Generator yielding LazyRow objects
+	 */
+	slice(start?: number, end?: number): Generator<LazyRow, void, undefined>;
+
+	/**
+	 * Materialize all rows to arrays
+	 * WARNING: May consume large amounts of memory
+	 */
+	toArray(): string[][];
+
+	/**
+	 * Free native memory
+	 * MUST be called when done with lazy result
+	 */
+	destroy(): void;
+}
+
+/**
+ * Eager mode result (default)
  */
 export interface ParseResult {
 	/**
@@ -172,13 +276,22 @@ export class Parser {
 	constructor();
 
 	/**
-	 * Parse a CSV string and return the data
+	 * Parse a CSV string in eager mode (default)
 	 * @param data - CSV data to parse
-	 * @param options - Parsing options
-	 * @returns Parsed CSV data
+	 * @param options - Parsing options (mode defaults to 'eager')
+	 * @returns Parsed CSV data with all rows materialized
 	 * @throws {OcsvError} If parsing fails with detailed error information
 	 */
-	parse(data: string, options?: ParseOptions): ParseResult;
+	parse(data: string, options?: ParseOptions & { mode?: 'eager' }): ParseResult;
+
+	/**
+	 * Parse a CSV string in lazy mode
+	 * @param data - CSV data to parse
+	 * @param options - Parsing options with mode='lazy'
+	 * @returns Lazy result accessor (requires manual destroy)
+	 * @throws {OcsvError} If parsing fails with detailed error information
+	 */
+	parse(data: string, options: ParseOptions & { mode: 'lazy' }): LazyResult;
 
 	/**
 	 * Parse a CSV file
@@ -197,13 +310,13 @@ export class Parser {
 
 /**
  * Convenience function to parse CSV string
- * Automatically manages parser lifecycle
+ * Automatically manages parser lifecycle (except in lazy mode)
  *
  * @param data - CSV data
  * @param options - Parsing options
  * @returns Parsed CSV data
  *
- * @example
+ * @example Eager mode (automatic cleanup)
  * ```typescript
  * import { parseCSV } from 'ocsv';
  *
@@ -211,8 +324,28 @@ export class Parser {
  * console.log(result.headers); // ['name', 'age']
  * console.log(result.rows);    // [['John', '30'], ['Jane', '25']]
  * ```
+ *
+ * @example Lazy mode (manual cleanup required)
+ * ```typescript
+ * const result = parseCSV(data, { mode: 'lazy' });
+ * try {
+ *   const row = result.getRow(5000);
+ *   console.log(row.toArray());
+ * } finally {
+ *   result.destroy();  // MUST call destroy()
+ * }
+ * ```
  */
-export function parseCSV(data: string, options?: ParseOptions): ParseResult;
+export function parseCSV(data: string, options?: ParseOptions & { mode?: 'eager' }): ParseResult;
+
+/**
+ * Convenience function to parse CSV string in lazy mode
+ *
+ * @param data - CSV data
+ * @param options - Parsing options with mode='lazy'
+ * @returns Lazy result accessor (requires manual destroy)
+ */
+export function parseCSV(data: string, options: ParseOptions & { mode: 'lazy' }): LazyResult;
 
 /**
  * Convenience function to parse CSV file
