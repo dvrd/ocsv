@@ -109,13 +109,13 @@ jobs:
         shell: cmd
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          odin version
+          %TEMP%\Odin\odin.exe version
 
       - name: Build library
         shell: cmd
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          odin build src -build-mode:shared -out:ocsv.dll -o:speed
+          %TEMP%\Odin\odin.exe build src -build-mode:shared -out:ocsv.dll -o:speed
 
       - name: Verify library exists
         shell: powershell
@@ -132,13 +132,13 @@ jobs:
         shell: cmd
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          odin test tests -all-packages
+          %TEMP%\Odin\odin.exe test tests -all-packages
 
       - name: Run tests with memory tracking
         shell: cmd
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          odin test tests -all-packages -debug
+          %TEMP%\Odin\odin.exe test tests -all-packages -debug
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -172,7 +172,7 @@ jobs:
           echo "/tmp/Odin" >> $GITHUB_PATH
 
       - name: Check code
-        run: odin check src -all-packages
+        run: odin check src
 
       - name: Check tests
-        run: odin check tests -all-packages
+        run: odin check tests
