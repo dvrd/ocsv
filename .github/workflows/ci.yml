@@ -117,10 +117,10 @@ jobs:
         shell: powershell
         run: |
           if (Test-Path "ocsv.dll") {
-            Write-Host "✓ Library built successfully: ocsv.dll"
+            Write-Host "[OK] Library built successfully: ocsv.dll"
             Get-Item ocsv.dll
           } else {
-            Write-Host "✗ Library not found!"
+            Write-Host "[ERROR] Library not found!"
             exit 1
           }
 
@@ -168,7 +168,7 @@ jobs:
           echo "/tmp/Odin" >> $GITHUB_PATH
 
       - name: Check code
-        run: odin check src
+        run: odin build src -build-mode:shared -out:libocsv.so -o:minimal
 
       - name: Check tests
-        run: odin check tests
+        run: odin build tests -build-mode:obj -o:minimal
