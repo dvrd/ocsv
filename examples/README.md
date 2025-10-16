@@ -10,7 +10,7 @@ curl -fsSL https://bun.sh/install | bash
 
 # Build the OCSV library (from project root)
 cd ..
-odin build src -build-mode:shared -out:libcsv.dylib -o:speed
+odin build src -build-mode:shared -out:libocsv.dylib -o:speed
 
 # Return to examples directory
 cd examples
@@ -33,20 +33,35 @@ This demonstrates basic CSV parsing with the 8-row sample file and verifies:
 
 ### Large Dataset Performance Test
 
-**Generate 10,000 rows of realistic data:**
+**Generate test data (configurable size):**
 ```bash
-bun run generate_large_data.ts
+bun run generate_large_data.ts                # 10K rows (default)
+bun run generate_large_data.ts 100000         # 100K rows
+bun run generate_large_data.ts 1000000        # 1M rows
+bun run generate_large_data.ts 10000000       # 10M rows (~1.4 GB)
 ```
 
 **Test parser performance:**
 ```bash
-bun run test_large_data.ts
+bun run test_large_data.ts                    # Test default file
+bun run test_large_data.ts large_data.csv     # Test specific file
 ```
 
-Expected results:
+**Run extreme benchmark suite:**
+```bash
+bun run benchmark_extreme.ts                  # 100K, 1M, 5M, 10M rows
+```
+
+Expected results (10K rows):
 - Parse time: ~60ms for 1.16MB file
-- Throughput: ~18+ MB/s
+- Throughput: ~60+ MB/s
 - Performance: ~160,000+ rows/sec
+
+Expected results (10M rows):
+- File size: ~1.4 GB
+- Parse time: ~20-25 seconds
+- Throughput: ~50-70 MB/s
+- Performance: ~400,000-500,000 rows/sec
 
 ## Examples
 
@@ -66,47 +81,112 @@ The simplest working example using the sample_data.csv file.
 bun run simple_demo.ts
 ```
 
-### 2. Large Data Generator (`generate_large_data.ts`)
+### 2. Large Data Generator (`generate_large_data.ts`) - IMPROVED ✨
 
-Generates a realistic CSV file with 10,000 rows for performance testing.
+Generates realistic CSV files with configurable row counts (10K to 10M+).
 
-**Generated data includes:**
-- Employee information (name, email, age, city)
-- Department and salary data
-- Product orders with quantities and prices
-- Quoted fields with commas
-- Realistic date ranges
+**Features:**
+- Configurable row count (command-line argument)
+- Custom output filename support
+- Chunked writing for memory efficiency (>1M rows)
+- Progress indicator for large files
+- Realistic employee data with quoted fields
+- Performance metrics (generation speed)
 
-**Run:**
+**Usage:**
 ```bash
-bun run generate_large_data.ts
+bun run generate_large_data.ts [rows] [output_file]
 ```
 
-This creates `large_data.csv` (~1.16 MB, 10,000 rows).
+**Examples:**
+```bash
+bun run generate_large_data.ts                    # 10K rows (default)
+bun run generate_large_data.ts 100000             # 100K rows
+bun run generate_large_data.ts 1000000            # 1M rows
+bun run generate_large_data.ts 10000000           # 10M rows
+bun run generate_large_data.ts 5000000 huge.csv   # 5M rows to custom file
+```
 
-### 3. Large Data Performance Test (`test_large_data.ts`)
+**Memory efficiency:**
+- Files < 1M rows: In-memory generation
+- Files > 1M rows: Chunked writing (100K row chunks)
 
-Performance benchmarking tool for large CSV files.
+### 3. Large Data Performance Test (`test_large_data.ts`) - IMPROVED ✨
+
+Comprehensive performance testing tool with detailed metrics and data validation.
+
+**New features:**
+- Accepts custom file path as argument
+- Enhanced statistics (read time, parse time, total time)
+- Sample data display (first and middle rows)
+- Performance breakdown (I/O vs parsing)
+- Comparison with project baseline (61.84 MB/s)
+- Nanosecond-level timing metrics
 
 **Metrics reported:**
-- Parse time (milliseconds)
-- Throughput (MB/s)
+- File size and row count
+- Read time and speed (MB/s)
+- Parse time and throughput (MB/s)
 - Rows per second
 - Bytes per row
-- Microseconds per row
+- Time per row (μs and ns)
+- Total time breakdown (I/O + Parse)
+- Performance rating vs baseline
 
-**Run:**
+**Usage:**
 ```bash
-bun run test_large_data.ts
+bun run test_large_data.ts [file]
 ```
 
-### 4. Basic Parser (`basic_parser.ts`)
+**Examples:**
+```bash
+bun run test_large_data.ts                # Test ./large_data.csv
+bun run test_large_data.ts huge.csv       # Test custom file
+```
+
+### 4. Extreme Dataset Benchmark (`benchmark_extreme.ts`) - NEW 🎯
+
+Comprehensive benchmark suite testing parser scalability with progressively larger datasets.
+
+**What it does:**
+- Generates and tests 4 dataset sizes: 100K, 1M, 5M, 10M rows
+- Measures generation time, read time, and parse time
+- Calculates throughput and rows/sec for each size
+- Analyzes scalability (performance variance across sizes)
+- Compares against project baseline
+- Auto-cleanup of test files
+
+**Usage:**
+```bash
+bun run benchmark_extreme.ts
+```
+
+**Output includes:**
+- Per-benchmark detailed metrics
+- Summary table comparing all sizes
+- Scalability analysis (variance)
+- Performance rating vs baseline
+
+**Expected runtime:**
+- ~30-60 seconds (depending on system)
+
+**Sample output:**
+```
+Size      Rows          File Size   Parse Time   Throughput    Rows/sec
+──────────────────────────────────────────────────────────────────────
+100K      100,000        13.85 MB     213.45 ms      64.91 MB/s    468,512
+1M        1,000,000     138.50 MB   2,134.50 ms      64.88 MB/s    468,426
+5M        5,000,000     692.50 MB  10,672.50 ms      64.87 MB/s    468,398
+10M      10,000,000    1385.00 MB  21,345.00 ms      64.89 MB/s    468,445
+```
+
+### 5. Basic Parser (`basic_parser.ts`)
 
 Reference example showing conceptual field access patterns.
 
 **Note:** This example has API limitations - the current FFI doesn't expose individual field values. It's kept as a reference for future enhancements.
 
-### 5. Streaming Parser (`streaming_parser.ts`)
+### 6. Streaming Parser (`streaming_parser.ts`)
 
 Conceptual example of streaming CSV processing.
 
@@ -247,10 +327,10 @@ For complete API documentation, see:
 cd examples
 
 # Make sure the library is built
-ls -la ../libcsv.dylib
+ls -la ../libocsv.dylib
 
 # If not, build it:
-cd .. && odin build src -build-mode:shared -out:libcsv.dylib -o:speed
+cd .. && odin build src -build-mode:shared -out:libocsv.dylib -o:speed
 ```
 
 **Bun not found:**

@@ -2,12 +2,33 @@
 /**
  * Generate Large CSV Dataset
  *
- * Creates a realistic CSV file with 10,000+ rows for testing parser performance
+ * Creates a realistic CSV file with configurable number of rows for testing parser performance
+ *
+ * Usage:
+ *   bun run generate_large_data.ts [rows] [output_file]
+ *
+ * Examples:
+ *   bun run generate_large_data.ts                    # 10K rows (default)
+ *   bun run generate_large_data.ts 100000             # 100K rows
+ *   bun run generate_large_data.ts 1000000            # 1M rows
+ *   bun run generate_large_data.ts 10000000           # 10M rows
+ *   bun run generate_large_data.ts 10000000 huge.csv  # 10M rows to custom file
  */
 
 import { writeFileSync } from "fs";
 
-const ROWS = 10000;
+// Parse command line arguments
+const args = process.argv.slice(2);
+const ROWS = args[0] ? parseInt(args[0], 10) : 10000;
+const OUTPUT_FILE = args[1] || "./large_data.csv";
+
+// Validate row count
+if (isNaN(ROWS) || ROWS < 1) {
+  console.error("❌ Error: Row count must be a positive number");
+  console.log("\nUsage: bun run generate_large_data.ts [rows] [output_file]");
+  console.log("Example: bun run generate_large_data.ts 10000000");
+  process.exit(1);
+}
 
 // Sample data for realistic generation
 const firstNames = ["James", "Mary", "John", "Patricia", "Robert", "Jennifer", "Michael", "Linda", "William", "Elizabeth", "David", "Barbara", "Richard", "Susan", "Joseph", "Jessica", "Thomas", "Sarah", "Christopher", "Karen"];
@@ -33,7 +54,16 @@ function randomDate(start: Date, end: Date): string {
   return date.toISOString().split('T')[0];
 }
 
+// Display generation info
+const sizeEstimate = (ROWS * 140) / (1024 * 1024); // ~140 bytes per row
 console.log(`📊 Generating CSV with ${ROWS.toLocaleString()} rows...`);
+console.log(`   Estimated size: ~${sizeEstimate.toFixed(2)} MB`);
+console.log(`   Output: ${OUTPUT_FILE}`);
+if (ROWS >= 1000000) {
+  console.log(`   ⏳ This may take a minute for ${ROWS >= 10000000 ? '10M+' : '1M+'} rows...`);
+}
+console.log();
+
 const startTime = performance.now();
 
 // Header
@@ -41,6 +71,16 @@ let csv = "id,name,email,age,city,department,salary,hire_date,product,quantity,p
 
 const startDate = new Date(2020, 0, 1);
 const endDate = new Date(2024, 11, 31);
+
+// For very large files (>1M rows), use chunked writing to avoid memory issues
+const CHUNK_SIZE = 100000;
+const useChunking = ROWS > 1000000;
+
+if (useChunking) {
+  // Write header first
+  writeFileSync(OUTPUT_FILE, csv);
+  csv = ""; // Clear buffer
+}
 
 // Generate rows
 for (let i = 1; i <= ROWS; i++) {
@@ -70,19 +110,44 @@ for (let i = 1; i <= ROWS; i++) {
   }
 
   csv += `${i},${rowName},${email},${age},${rowCity},${department},${salary},${hireDate},${product},${quantity},${price},${total}\n`;
+
+  // For large files, write in chunks to avoid memory issues
+  if (useChunking && i % CHUNK_SIZE === 0) {
+    const fs = await import("fs");
+    fs.appendFileSync(OUTPUT_FILE, csv);
+    csv = ""; // Clear buffer
+
+    // Progress indicator
+    const progress = ((i / ROWS) * 100).toFixed(1);
+    process.stdout.write(`\r   Progress: ${progress}% (${i.toLocaleString()} / ${ROWS.toLocaleString()} rows)`);
+  }
 }
 
-// Write file
-writeFileSync("./large_data.csv", csv);
-const endTime = performance.now();
+// Write remaining data
+if (useChunking && csv.length > 0) {
+  const fs = await import("fs");
+  fs.appendFileSync(OUTPUT_FILE, csv);
+  process.stdout.write(`\r   Progress: 100.0% (${ROWS.toLocaleString()} / ${ROWS.toLocaleString()} rows)\n`);
+} else if (!useChunking) {
+  writeFileSync(OUTPUT_FILE, csv);
+}
 
-const fileSizeBytes = Buffer.byteLength(csv, 'utf-8');
+const endTime = performance.now();
+const generationTime = endTime - startTime;
+
+// Calculate file size
+const fs = await import("fs");
+const stats = fs.statSync(OUTPUT_FILE);
+const fileSizeBytes = stats.size;
 const fileSizeKB = (fileSizeBytes / 1024).toFixed(2);
 const fileSizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
 
-console.log(`✅ Generated ./large_data.csv`);
-console.log(`   Rows: ${ROWS.toLocaleString()}`);
-console.log(`   Size: ${fileSizeMB} MB (${fileSizeKB} KB)`);
-console.log(`   Time: ${(endTime - startTime).toFixed(2)}ms`);
-console.log(`\n💡 Use this file to test the parser:`);
-console.log(`   bun run test_large_data.ts`);
+console.log();
+console.log(`✅ Generated ${OUTPUT_FILE}`);
+console.log(`   Rows: ${ROWS.toLocaleString()} (+ 1 header)`);
+console.log(`   Size: ${fileSizeMB} MB (${fileSizeKB} KB, ${fileSizeBytes.toLocaleString()} bytes)`);
+console.log(`   Time: ${generationTime.toFixed(2)}ms (${(generationTime / 1000).toFixed(2)}s)`);
+console.log(`   Speed: ${(ROWS / (generationTime / 1000)).toFixed(0)} rows/sec`);
+console.log();
+console.log(`💡 Test the parser with this file:`);
+console.log(`   bun run test_large_data.ts ${OUTPUT_FILE}`);

@@ -48,11 +48,11 @@ function getLibraryPath() {
 	// Determine library name by platform
 	let libName;
 	if (platform.startsWith('darwin')) {
-		libName = 'libcsv.dylib';
+		libName = 'libocsv.dylib';
 	} else if (platform.startsWith('linux')) {
-		libName = 'libcsv.so';
+		libName = 'libocsv.so';
 	} else if (platform.startsWith('win32')) {
-		libName = 'csv.dll';
+		libName = 'ocsv.dll';
 	} else {
 		throw new Error(`Unsupported platform: ${platform}`);
 	}

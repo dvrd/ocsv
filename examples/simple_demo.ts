@@ -12,7 +12,7 @@ import { dlopen, FFIType, suffix } from "bun:ffi";
 import { readFileSync } from "fs";
 
 // Load the OCSV library
-const lib = dlopen(`../libcsv.${suffix}`, {
+const lib = dlopen(`../libocsv.${suffix}`, {
   ocsv_parser_create: {
     returns: FFIType.ptr,
   },
