@@ -320,8 +320,13 @@ export class Parser {
 
 		// Handle header row if requested
 		if (options.hasHeader && rowCount > 0) {
-			const headerRow = new LazyRow(this.parser, 0);
-			headers = headerRow.toArray();
+			// Extract headers eagerly using direct FFI
+			// This is a small overhead (~50-100μs) but ensures reliability
+			const fieldCount = lib.symbols.ocsv_get_field_count(this.parser, 0);
+			headers = new Array(fieldCount);
+			for (let i = 0; i < fieldCount; i++) {
+				headers[i] = lib.symbols.ocsv_get_field(this.parser, 0, i) || "";
+			}
 
 			// Create LazyResult starting from row 1 (data rows only)
 			// Note: User will call getRow(0) to access first data row

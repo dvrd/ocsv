@@ -11,18 +11,21 @@ console.log('🧪 OCSV Memory Leak Test\n');
 console.log('─'.repeat(60));
 
 // Check if large file exists
-const largeFilePath = resolve('./examples/large_data.csv');
+let largeFilePath = resolve('./examples/large_data.csv');
 if (!existsSync(largeFilePath)) {
-	console.error('❌ Large test file not found: examples/large_data.csv');
-	console.error('   Using smaller test data instead...\n');
+	largeFilePath = resolve('../examples/large_data.csv');
+	if (!existsSync(largeFilePath)) {
+		console.error('❌ Large test file not found: examples/large_data.csv');
+		console.error('   Using smaller test data instead...\n');
 
 	// Generate test data
-	const rows = 100000;
-	const testData = Array.from({ length: rows }, (_, i) =>
-		`${i},User${i},user${i}@example.com,City${i % 100}`
-	).join('\n');
+		const rows = 100000;
+		const testData = Array.from({ length: rows }, (_, i) =>
+			`${i},User${i},user${i}@example.com,City${i % 100}`
+		).join('\n');
 
-	runMemoryTest(testData, 'Generated 100k rows');
+		runMemoryTest(testData, 'Generated 100k rows');
+	}
 } else {
 	console.log('📂 Loading large test file...');
 	const data = readFileSync(largeFilePath, 'utf-8');

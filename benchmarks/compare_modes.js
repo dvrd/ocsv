@@ -12,11 +12,15 @@ console.log('🏁 OCSV Performance Comparison\n');
 console.log('─'.repeat(60));
 
 // Check if large file exists
-const largeFilePath = resolve('./examples/large_data.csv');
+let largeFilePath = resolve('./examples/large_data.csv');
 if (!existsSync(largeFilePath)) {
-	console.error('❌ Large test file not found: examples/large_data.csv');
-	console.error('   Please generate the file first or use a smaller test.');
-	process.exit(1);
+	// Try alternate location (bindings/)
+	largeFilePath = resolve('../examples/large_data.csv');
+	if (!existsSync(largeFilePath)) {
+		console.error('❌ Large test file not found: examples/large_data.csv');
+		console.error('   Please generate the file first: bun examples/generate_data.js 1000000');
+		process.exit(1);
+	}
 }
 
 console.log('📂 Loading test file...');
@@ -33,11 +37,20 @@ console.log('─'.repeat(60));
 // 1. FFI Direct (baseline)
 console.log('\n1️⃣  FFI Direct (baseline)\n');
 
-const libPath = resolve('./libocsv.dylib');
+// Find library in multiple locations
+let libPath = resolve('./libocsv.dylib');
 if (!existsSync(libPath)) {
-	console.error('❌ Library not found: libocsv.dylib');
-	process.exit(1);
+	libPath = resolve('../libocsv.dylib');
+	if (!existsSync(libPath)) {
+		libPath = resolve('../../libocsv.dylib');
+		if (!existsSync(libPath)) {
+			console.error('❌ Library not found: libocsv.dylib');
+			console.error('   Please build the library: odin build src -build-mode:shared -out:libocsv.dylib -o:speed');
+			process.exit(1);
+		}
+	}
 }
+console.log(`   Using library: ${libPath}`);
 
 const lib = dlopen(libPath, {
 	ocsv_parser_create: { returns: FFIType.ptr },
