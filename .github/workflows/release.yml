@@ -1,0 +1,272 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # Allow manual trigger for testing
+
+permissions:
+  contents: write  # Required for pushing tags and commits
+  issues: write    # Required for semantic-release to comment on issues
+  pull-requests: write  # Required for semantic-release to comment on PRs
+  id-token: write  # Required for npm provenance (OIDC)
+
+env:
+  LLVM_VERSION: '20'
+  ODIN_VERSION: 'dev-2025-01'
+
+jobs:
+  # Job 1: Build native libraries for all platforms
+  build:
+    name: Build (${{ matrix.platform }}-${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS ARM64 (Apple Silicon)
+          - os: macos-14
+            platform: darwin
+            arch: arm64
+            lib_name: libocsv.dylib
+            llvm_path: /opt/homebrew/opt/llvm@20
+
+          # macOS x64 (Intel)
+          - os: macos-13
+            platform: darwin
+            arch: x64
+            lib_name: libocsv.dylib
+            llvm_path: /usr/local/opt/llvm@20
+
+          # Linux x64
+          - os: ubuntu-latest
+            platform: linux
+            arch: x64
+            lib_name: libocsv.so
+            llvm_path: /usr/lib/llvm-20
+
+          # Windows x64
+          - os: windows-2022
+            platform: win32
+            arch: x64
+            lib_name: ocsv.dll
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # macOS setup
+      - name: Cache LLVM (macOS)
+        if: startsWith(matrix.os, 'macos')
+        uses: actions/cache@v4
+        id: llvm-cache-mac
+        with:
+          path: ${{ matrix.llvm_path }}
+          key: llvm-${{ matrix.os }}-${{ env.LLVM_VERSION }}-v2
+
+      - name: Install LLVM (macOS)
+        if: startsWith(matrix.os, 'macos') && steps.llvm-cache-mac.outputs.cache-hit != 'true'
+        run: |
+          brew update
+          brew install llvm@${{ env.LLVM_VERSION }}
+
+      - name: Add LLVM to PATH (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          echo "$(brew --prefix llvm@${{ env.LLVM_VERSION }})/bin" >> $GITHUB_PATH
+          echo "DYLD_LIBRARY_PATH=$(brew --prefix llvm@${{ env.LLVM_VERSION }})/lib" >> $GITHUB_ENV
+
+      # Linux setup
+      - name: Cache LLVM (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/cache@v4
+        id: llvm-cache-linux
+        with:
+          path: ${{ matrix.llvm_path }}
+          key: llvm-${{ matrix.os }}-${{ env.LLVM_VERSION }}
+
+      - name: Install LLVM (Linux)
+        if: matrix.os == 'ubuntu-latest' && steps.llvm-cache-linux.outputs.cache-hit != 'true'
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh ${{ env.LLVM_VERSION }}
+
+      - name: Add LLVM to PATH (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          echo "${{ matrix.llvm_path }}/bin" >> $GITHUB_PATH
+          echo "LD_LIBRARY_PATH=${{ matrix.llvm_path }}/lib" >> $GITHUB_ENV
+
+      # Cache Odin compiler (Unix)
+      - name: Cache Odin (Unix)
+        if: runner.os != 'Windows'
+        uses: actions/cache@v4
+        id: odin-cache-unix
+        with:
+          path: /tmp/Odin
+          key: odin-${{ matrix.os }}-${{ env.ODIN_VERSION }}-${{ hashFiles('.github/workflows/release.yml') }}
+
+      - name: Build Odin (Unix)
+        if: runner.os != 'Windows' && steps.odin-cache-unix.outputs.cache-hit != 'true'
+        run: |
+          cd /tmp
+          git clone --depth=1 https://github.com/odin-lang/Odin.git
+          cd Odin
+          export LLVM_CONFIG="${{ matrix.llvm_path }}/bin/llvm-config"
+          ./build_odin.sh release
+
+      - name: Add Odin to PATH (Unix)
+        if: runner.os != 'Windows'
+        run: echo "/tmp/Odin" >> $GITHUB_PATH
+
+      # Windows setup
+      - name: Cache Odin (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/cache@v4
+        id: odin-cache-win
+        with:
+          path: ${{ runner.temp }}\Odin
+          key: odin-${{ matrix.os }}-${{ env.ODIN_VERSION }}-${{ hashFiles('.github/workflows/release.yml') }}
+
+      - name: Build Odin (Windows)
+        if: runner.os == 'Windows' && steps.odin-cache-win.outputs.cache-hit != 'true'
+        shell: cmd
+        run: |
+          cd %RUNNER_TEMP%
+          git clone --depth=1 https://github.com/odin-lang/Odin.git
+          cd Odin
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          build.bat 1
+
+      - name: Add Odin to PATH (Windows)
+        if: runner.os == 'Windows'
+        run: echo "${{ runner.temp }}\Odin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        shell: powershell
+
+      # Build library (Windows)
+      - name: Build library (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          %RUNNER_TEMP%\Odin\odin.exe build src -build-mode:shared -out:${{ matrix.lib_name }} -o:speed
+
+      # Build library (Unix)
+      - name: Build library (Unix)
+        if: runner.os != 'Windows'
+        run: odin build src -build-mode:shared -out:${{ matrix.lib_name }} -o:speed
+
+      # Create prebuild structure
+      - name: Prepare prebuild directory
+        shell: bash
+        run: |
+          mkdir -p prebuilds/${{ matrix.platform }}-${{ matrix.arch }}
+          cp ${{ matrix.lib_name }} prebuilds/${{ matrix.platform }}-${{ matrix.arch }}/
+
+      # Verify library was created
+      - name: Verify library
+        shell: bash
+        run: |
+          if [ -f "prebuilds/${{ matrix.platform }}-${{ matrix.arch }}/${{ matrix.lib_name }}" ]; then
+            echo "✓ Library prepared: prebuilds/${{ matrix.platform }}-${{ matrix.arch }}/${{ matrix.lib_name }}"
+            ls -lh prebuilds/${{ matrix.platform }}-${{ matrix.arch }}/${{ matrix.lib_name }}
+          else
+            echo "✗ Library not found!"
+            exit 1
+          fi
+
+      # Upload prebuild as artifact
+      - name: Upload prebuild artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: prebuild-${{ matrix.platform }}-${{ matrix.arch }}
+          path: prebuilds/${{ matrix.platform }}-${{ matrix.arch }}/${{ matrix.lib_name }}
+          retention-days: 1
+
+  # Job 2: Run semantic-release
+  release:
+    name: Semantic Release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Required for semantic-release to analyze commit history
+          persist-credentials: false  # We'll use PAT instead
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          registry-url: 'https://registry.npmjs.org'
+
+      # Download all prebuilt binaries
+      - name: Download darwin-arm64 prebuild
+        uses: actions/download-artifact@v4
+        with:
+          name: prebuild-darwin-arm64
+          path: prebuilds/darwin-arm64
+
+      - name: Download darwin-x64 prebuild
+        uses: actions/download-artifact@v4
+        with:
+          name: prebuild-darwin-x64
+          path: prebuilds/darwin-x64
+
+      - name: Download linux-x64 prebuild
+        uses: actions/download-artifact@v4
+        with:
+          name: prebuild-linux-x64
+          path: prebuilds/linux-x64
+
+      - name: Download win32-x64 prebuild
+        uses: actions/download-artifact@v4
+        with:
+          name: prebuild-win32-x64
+          path: prebuilds/win32-x64
+
+      # Verify all prebuilds exist
+      - name: Verify prebuilds
+        run: |
+          echo "=== Prebuilds Directory Structure ==="
+          ls -lhR prebuilds/
+          echo ""
+          echo "=== Checking for required files ==="
+          for platform in darwin-arm64 darwin-x64 linux-x64 win32-x64; do
+            if [ -d "prebuilds/$platform" ] && [ -n "$(ls -A prebuilds/$platform)" ]; then
+              echo "✓ $platform prebuild exists"
+            else
+              echo "✗ $platform prebuild missing!"
+              exit 1
+            fi
+          done
+
+      # Install dependencies
+      - name: Install dependencies
+        run: npm ci
+
+      # Run semantic-release
+      - name: Run semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GIT_AUTHOR_NAME: 'github-actions[bot]'
+          GIT_AUTHOR_EMAIL: 'github-actions[bot]@users.noreply.github.com'
+          GIT_COMMITTER_NAME: 'github-actions[bot]'
+          GIT_COMMITTER_EMAIL: 'github-actions[bot]@users.noreply.github.com'
+        run: npx semantic-release
+
+      # Optional: Notify on success
+      - name: Release summary
+        if: success()
+        run: |
+          echo "✅ Release completed successfully!"
+          echo "Check https://github.com/dvrd/ocsv/releases"
+          echo "Check https://www.npmjs.com/package/ocsv"
