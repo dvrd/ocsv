@@ -50,7 +50,11 @@ destroy_test_context :: proc(ctx: ^Test_Context) {
 	}
 	delete(ctx.rows_collected)
 
-	// Don't delete error messages - they might be string literals
+	// Free Error_Info strings (always allocated by make_error)
+	for error in ctx.errors {
+		delete(error.message)
+		delete(error.ctx)
+	}
 	delete(ctx.errors)
 }
 

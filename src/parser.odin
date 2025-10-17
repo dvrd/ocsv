@@ -42,23 +42,59 @@ parser_create :: proc() -> ^Parser {
 
 // parser_destroy frees all memory associated with the parser
 parser_destroy :: proc(parser: ^Parser) {
-    delete(parser.field_buffer)
+    if parser == nil do return
 
-    // Free all row data
-    for row in parser.all_rows {
-        // Free each string in the row
-        for field in row {
+    // Platform-specific cleanup (Windows VirtualAlloc is stricter than Unix mmap)
+    when ODIN_OS == .Windows {
+        // Windows requires extra validation to avoid "bad free" warnings
+        if len(parser.field_buffer) > 0 {
+            delete(parser.field_buffer)
+        }
+
+        // Free all row data with additional checks
+        if len(parser.all_rows) > 0 {
+            for row in parser.all_rows {
+                if len(row) > 0 {
+                    for field in row {
+                        // Only delete non-empty strings
+                        if field != "" {
+                            delete(field)
+                        }
+                    }
+                    delete(row)
+                }
+            }
+            delete(parser.all_rows)
+        }
+
+        // Free any remaining fields in current_row
+        if len(parser.current_row) > 0 {
+            for field in parser.current_row {
+                if field != "" {
+                    delete(field)
+                }
+            }
+            delete(parser.current_row)
+        }
+    } else {
+        // Standard cleanup for macOS/Linux (Unix mmap more forgiving)
+        delete(parser.field_buffer)
+
+        // Free all row data
+        for row in parser.all_rows {
+            for field in row {
+                delete(field)
+            }
+            delete(row)
+        }
+        delete(parser.all_rows)
+
+        // Free any remaining fields in current_row
+        for field in parser.current_row {
             delete(field)
         }
-        delete(row)
+        delete(parser.current_row)
     }
-    delete(parser.all_rows)
-
-    // Free any remaining fields in current_row
-    for field in parser.current_row {
-        delete(field)
-    }
-    delete(parser.current_row)
 
     free(parser)
 }
@@ -71,21 +107,46 @@ parse_simple_csv :: proc(parser: ^Parser, data: string) -> bool {
 
 // clear_parser_data frees all parsed data (used when reusing parser)
 clear_parser_data :: proc(parser: ^Parser) {
-    // Free all row data
-    for row in parser.all_rows {
-        // Free each string in the row
-        for field in row {
+    // Platform-specific cleanup (Windows VirtualAlloc is stricter than Unix mmap)
+    when ODIN_OS == .Windows {
+        // Windows requires extra validation to avoid "bad free" warnings
+        if len(parser.all_rows) > 0 {
+            for row in parser.all_rows {
+                if len(row) > 0 {
+                    for field in row {
+                        if field != "" {
+                            delete(field)
+                        }
+                    }
+                    delete(row)
+                }
+            }
+        }
+        clear(&parser.all_rows)
+
+        if len(parser.current_row) > 0 {
+            for field in parser.current_row {
+                if field != "" {
+                    delete(field)
+                }
+            }
+        }
+        clear(&parser.current_row)
+    } else {
+        // Standard cleanup for macOS/Linux
+        for row in parser.all_rows {
+            for field in row {
+                delete(field)
+            }
+            delete(row)
+        }
+        clear(&parser.all_rows)
+
+        for field in parser.current_row {
             delete(field)
         }
-        delete(row)
+        clear(&parser.current_row)
     }
-    clear(&parser.all_rows)
-
-    // Free any remaining fields in current_row
-    for field in parser.current_row {
-        delete(field)
-    }
-    clear(&parser.current_row)
 }
 
 // parse_csv performs RFC 4180 compliant CSV parsing with full edge case handling

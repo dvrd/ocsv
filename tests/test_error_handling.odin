@@ -102,6 +102,7 @@ test_error_column_consistency :: proc(t: ^testing.T) {
     testing.expect(t, ok, "Parse should succeed")
 
     consistent, err := ocsv.validate_column_consistency(parser, true)
+    defer ocsv.error_info_destroy(&err)
 
     testing.expect(t, !consistent, "Should detect inconsistent columns")
     testing.expect_value(t, err.code, ocsv.Parse_Error.Inconsistent_Column_Count)
@@ -252,6 +253,7 @@ test_error_formatting :: proc(t: ^testing.T) {
         "Invalid UTF-8 sequence at position 25",
         "...some context...",
     )
+    defer ocsv.error_info_destroy(&err)
 
     formatted := ocsv.format_error(err)
     defer delete(formatted)

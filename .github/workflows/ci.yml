@@ -6,143 +6,12 @@ on:
   pull_request:
     branches: [ main ]
 
+env:
+  LLVM_VERSION: '20'
+  ODIN_VERSION: 'dev-2025-01'
+
 jobs:
-  build-and-test:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-14, ubuntu-latest]
-        include:
-          - os: macos-14
-            lib_name: libocsv.dylib
-            platform: macOS
-          - os: ubuntu-latest
-            lib_name: libocsv.so
-            platform: Linux
-
-    runs-on: ${{ matrix.os }}
-    name: Build & Test (${{ matrix.platform }})
-    timeout-minutes: 15
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download LLVM (MacOS ARM)
-        if: matrix.os == 'macos-14'
-        run: |
-          brew update
-          brew install llvm@20
-          echo "$(brew --prefix llvm@20)/bin" >> $GITHUB_PATH
-
-      - name: Download LLVM (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          wget https://apt.llvm.org/llvm.sh
-          chmod +x llvm.sh
-          sudo ./llvm.sh 20
-          echo "/usr/lib/llvm-20/bin" >> $GITHUB_PATH
-
-      - name: Clone and Build Odin
-        run: |
-          cd /tmp
-          git clone --depth=1 https://github.com/odin-lang/Odin.git
-          cd Odin
-          ./build_odin.sh release
-          echo "/tmp/Odin" >> $GITHUB_PATH
-
-      - name: Verify Odin installation
-        run: |
-          odin version
-          odin report
-
-      - name: Build library
-        run: odin build src -build-mode:shared -out:${{ matrix.lib_name }} -o:speed
-
-      - name: Verify library exists
-        run: |
-          if [ -f "${{ matrix.lib_name }}" ]; then
-            echo "✓ Library built successfully: ${{ matrix.lib_name }}"
-            ls -lh ${{ matrix.lib_name }}
-          else
-            echo "✗ Library not found!"
-            exit 1
-          fi
-
-      - name: Run tests
-        run: odin test tests -all-packages
-
-      - name: Run tests with memory tracking
-        run: odin test tests -all-packages -debug
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ocsv-${{ matrix.platform }}-${{ github.sha }}
-          path: ${{ matrix.lib_name }}
-          retention-days: 7
-
-  build-windows:
-    name: Build & Test (Windows)
-    runs-on: windows-2022
-    timeout-minutes: 15
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Clone and Build Odin
-        shell: cmd
-        run: |
-          cd %RUNNER_TEMP%
-          git clone --depth=1 https://github.com/odin-lang/Odin.git
-          cd Odin
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          build.bat 1
-          if not exist "odin.exe" (
-            echo ERROR: odin.exe was not built!
-            dir
-            exit /b 1
-          )
-          echo SUCCESS: odin.exe built at %RUNNER_TEMP%\Odin\odin.exe
-          %RUNNER_TEMP%\Odin\odin.exe version
-
-      - name: Build library
-        shell: cmd
-        run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          %RUNNER_TEMP%\Odin\odin.exe build src -build-mode:shared -out:ocsv.dll -o:speed
-
-      - name: Verify library exists
-        shell: powershell
-        run: |
-          if (Test-Path "ocsv.dll") {
-            Write-Host "[OK] Library built successfully: ocsv.dll"
-            Get-Item ocsv.dll
-          } else {
-            Write-Host "[ERROR] Library not found!"
-            exit 1
-          }
-
-      - name: Run tests
-        shell: cmd
-        run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          %RUNNER_TEMP%\Odin\odin.exe test tests -all-packages
-
-      - name: Run tests with memory tracking
-        shell: cmd
-        run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          %RUNNER_TEMP%\Odin\odin.exe test tests -all-packages -debug
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ocsv-Windows-${{ github.sha }}
-          path: ocsv.dll
-          retention-days: 7
-
+  # Run lint first (fail fast)
   lint:
     name: Lint & Format Check
     runs-on: ubuntu-latest
@@ -152,23 +21,238 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download LLVM (Ubuntu)
+      # Cache LLVM installation
+      - name: Cache LLVM
+        uses: actions/cache@v4
+        id: llvm-cache
+        with:
+          path: /usr/lib/llvm-20
+          key: llvm-ubuntu-${{ env.LLVM_VERSION }}
+
+      - name: Install LLVM
+        if: steps.llvm-cache.outputs.cache-hit != 'true'
         run: |
           wget https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
-          sudo ./llvm.sh 20
-          echo "/usr/lib/llvm-20/bin" >> $GITHUB_PATH
+          sudo ./llvm.sh ${{ env.LLVM_VERSION }}
 
-      - name: Clone and Build Odin
+      - name: Add LLVM to PATH
+        run: echo "/usr/lib/llvm-20/bin" >> $GITHUB_PATH
+
+      # Cache Odin compiler
+      - name: Cache Odin
+        uses: actions/cache@v4
+        id: odin-cache
+        with:
+          path: /tmp/Odin
+          key: odin-ubuntu-${{ env.ODIN_VERSION }}-${{ hashFiles('.github/workflows/ci.yml') }}
+
+      - name: Build Odin
+        if: steps.odin-cache.outputs.cache-hit != 'true'
         run: |
           cd /tmp
           git clone --depth=1 https://github.com/odin-lang/Odin.git
           cd Odin
           ./build_odin.sh release
-          echo "/tmp/Odin" >> $GITHUB_PATH
+
+      - name: Add Odin to PATH
+        run: echo "/tmp/Odin" >> $GITHUB_PATH
 
       - name: Check code
         run: odin build src -build-mode:shared -out:libocsv.so -o:minimal
 
       - name: Check tests
         run: odin build tests -build-mode:obj -o:minimal
+
+  # Build and test (runs after lint passes)
+  build-and-test:
+    needs: lint
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            lib_name: libocsv.dylib
+            platform: macOS-ARM64
+            llvm_path: /opt/homebrew/opt/llvm@20
+            odin_path: /tmp/Odin
+          - os: ubuntu-latest
+            lib_name: libocsv.so
+            platform: Linux
+            llvm_path: /usr/lib/llvm-20
+            odin_path: /tmp/Odin
+          - os: windows-2022
+            lib_name: ocsv.dll
+            platform: Windows
+            odin_path_win: '%RUNNER_TEMP%\Odin'
+
+    name: Build & Test (${{ matrix.platform }})
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # macOS: Cache LLVM
+      - name: Cache LLVM (macOS)
+        if: startsWith(matrix.os, 'macos')
+        uses: actions/cache@v4
+        id: llvm-cache-mac
+        with:
+          path: ${{ matrix.llvm_path }}
+          key: llvm-${{ matrix.os }}-${{ env.LLVM_VERSION }}
+
+      - name: Install LLVM (macOS)
+        if: startsWith(matrix.os, 'macos') && steps.llvm-cache-mac.outputs.cache-hit != 'true'
+        run: |
+          brew update
+          brew install llvm@${{ env.LLVM_VERSION }}
+
+      - name: Add LLVM to PATH (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: echo "$(brew --prefix llvm@${{ env.LLVM_VERSION }})/bin" >> $GITHUB_PATH
+
+      # Linux: Cache LLVM
+      - name: Cache LLVM (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/cache@v4
+        id: llvm-cache-linux
+        with:
+          path: ${{ matrix.llvm_path }}
+          key: llvm-${{ matrix.os }}-${{ env.LLVM_VERSION }}
+
+      - name: Install LLVM (Linux)
+        if: matrix.os == 'ubuntu-latest' && steps.llvm-cache-linux.outputs.cache-hit != 'true'
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh ${{ env.LLVM_VERSION }}
+
+      - name: Add LLVM to PATH (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: echo "${{ matrix.llvm_path }}/bin" >> $GITHUB_PATH
+
+      # Unix: Cache Odin compiler
+      - name: Cache Odin (Unix)
+        if: runner.os != 'Windows'
+        uses: actions/cache@v4
+        id: odin-cache-unix
+        with:
+          path: ${{ matrix.odin_path }}
+          key: odin-${{ matrix.os }}-${{ env.ODIN_VERSION }}-${{ hashFiles('.github/workflows/ci.yml') }}
+
+      - name: Build Odin (Unix)
+        if: runner.os != 'Windows' && steps.odin-cache-unix.outputs.cache-hit != 'true'
+        run: |
+          cd /tmp
+          git clone --depth=1 https://github.com/odin-lang/Odin.git
+          cd Odin
+          ./build_odin.sh release
+
+      - name: Add Odin to PATH (Unix)
+        if: runner.os != 'Windows'
+        run: echo "${{ matrix.odin_path }}" >> $GITHUB_PATH
+
+      # Windows: Cache Odin compiler
+      - name: Cache Odin (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/cache@v4
+        id: odin-cache-win
+        with:
+          path: ${{ runner.temp }}\Odin
+          key: odin-${{ matrix.os }}-${{ env.ODIN_VERSION }}-${{ hashFiles('.github/workflows/ci.yml') }}
+
+      - name: Build Odin (Windows)
+        if: runner.os == 'Windows' && steps.odin-cache-win.outputs.cache-hit != 'true'
+        shell: cmd
+        run: |
+          cd %RUNNER_TEMP%
+          git clone --depth=1 https://github.com/odin-lang/Odin.git
+          cd Odin
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          build.bat 1
+          if not exist "odin.exe" (
+            echo ERROR: odin.exe was not built!
+            exit /b 1
+          )
+
+      - name: Add Odin to PATH (Windows)
+        if: runner.os == 'Windows'
+        run: echo "${{ runner.temp }}\Odin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        shell: powershell
+
+      # Verify Odin installation
+      - name: Verify Odin installation
+        run: odin version
+        shell: bash
+
+      # Build library (Windows)
+      - name: Build library (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          %RUNNER_TEMP%\Odin\odin.exe build src -build-mode:shared -out:${{ matrix.lib_name }} -o:speed
+
+      # Build library (Unix)
+      - name: Build library (Unix)
+        if: runner.os != 'Windows'
+        run: odin build src -build-mode:shared -out:${{ matrix.lib_name }} -o:speed
+
+      # Verify library exists
+      - name: Verify library exists (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          if [ -f "${{ matrix.lib_name }}" ]; then
+            echo "✓ Library built successfully: ${{ matrix.lib_name }}"
+            ls -lh ${{ matrix.lib_name }}
+          else
+            echo "✗ Library not found!"
+            exit 1
+          fi
+
+      - name: Verify library exists (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          if (Test-Path "${{ matrix.lib_name }}") {
+            Write-Host "[OK] Library built successfully: ${{ matrix.lib_name }}"
+            Get-Item ${{ matrix.lib_name }}
+          } else {
+            Write-Host "[ERROR] Library not found!"
+            exit 1
+          }
+
+      # Run tests (Windows)
+      - name: Run tests (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          %RUNNER_TEMP%\Odin\odin.exe test tests -all-packages
+
+      - name: Run tests with memory tracking (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          %RUNNER_TEMP%\Odin\odin.exe test tests -all-packages -debug
+
+      # Run tests (Unix)
+      - name: Run tests (Unix)
+        if: runner.os != 'Windows'
+        run: odin test tests -all-packages
+
+      - name: Run tests with memory tracking (Unix)
+        if: runner.os != 'Windows'
+        run: odin test tests -all-packages -debug
+
+      # Upload artifacts
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocsv-${{ matrix.platform }}-${{ github.sha }}
+          path: ${{ matrix.lib_name }}
+          retention-days: 7

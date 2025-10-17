@@ -15,7 +15,9 @@ make_result_and_transfer_warnings :: proc(parser: ^Parser_Extended, result: Pars
 
 parse_csv_with_errors :: proc(parser: ^Parser_Extended, data: string) -> Parse_Result {
     if len(data) == 0 {
-        return make_result_and_transfer_warnings(parser, make_error_result(make_error(.Empty_Input, 0, 0, "Input data is empty")))
+        err := make_error(.Empty_Input, 0, 0, "Input data is empty")
+        record_error(parser, err)  // Store in last_error (takes ownership)
+        return make_result_and_transfer_warnings(parser, make_error_result(err))  // Clone for result
     }
 
     state := Parse_State.Field_Start

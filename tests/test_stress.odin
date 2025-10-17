@@ -59,7 +59,7 @@ test_stress_parser_reuse :: proc(t: ^testing.T) {
 		testing.expect(t, ok, "Parse should succeed")
 		testing.expect_value(t, len(parser.all_rows), 1)
 
-		delete(csv_data)  // Free immediately, not with defer
+		// Note: csv_data from fmt.tprintf uses temp allocator - don't manually delete
 
 		if i > 0 && i % 100 == 0 {
 			fmt.printf("  Reused parser %d times\n", i)

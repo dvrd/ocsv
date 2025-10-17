@@ -4,6 +4,7 @@ package ocsv
 // Provides clear error messages with line/column information
 
 import "core:fmt"
+import "core:strings"
 
 // Parse_Error represents the type of parsing error that occurred
 Parse_Error :: enum {
@@ -59,13 +60,14 @@ error_to_string :: proc(err: Parse_Error) -> string {
 }
 
 // make_error creates an Error_Info with the given parameters
+// IMPORTANT: Always clones strings (even empty ones) so all Error_Info strings are owned and can be freed
 make_error :: proc(code: Parse_Error, line: int, column: int, message: string, ctx: string = "") -> Error_Info {
     return Error_Info{
         code = code,
         line = line,
         column = column,
-        message = message,
-        ctx = ctx,
+        message = strings.clone(message),  // Always clone to ensure consistent ownership
+        ctx = strings.clone(ctx),          // Always clone, even if empty, for consistent ownership
     }
 }
 
@@ -92,6 +94,16 @@ format_error :: proc(err: Error_Info, allocator := context.allocator) -> string 
 // is_error checks if an Error_Info represents an actual error
 is_error :: proc(err: Error_Info) -> bool {
     return err.code != .None
+}
+
+// error_info_destroy frees the strings owned by an Error_Info
+// Call this after creating Error_Info with make_error to prevent leaks
+error_info_destroy :: proc(err: ^Error_Info) {
+    delete(err.message)
+    delete(err.ctx)
+    err.message = ""
+    err.ctx = ""
+    err.code = .None
 }
 
 // Recovery_Strategy determines how to handle errors during parsing
@@ -123,10 +135,16 @@ make_success_result :: proc(rows_parsed: int) -> Parse_Result {
 }
 
 // make_error_result creates a failed parse result
+// Clones the error strings so Parse_Result owns them independently
 make_error_result :: proc(err: Error_Info, rows_parsed: int = 0) -> Parse_Result {
+    // Clone error to ensure Parse_Result owns its strings independently
+    err_copy := err
+    err_copy.message = strings.clone(err.message)
+    err_copy.ctx = strings.clone(err.ctx)
+
     return Parse_Result{
         success = false,
-        error = err,
+        error = err_copy,
         warnings = make([dynamic]Error_Info),
         rows_parsed = rows_parsed,
         rows_skipped = 0,
@@ -139,7 +157,16 @@ add_warning :: proc(result: ^Parse_Result, warning: Error_Info) {
 }
 
 parse_result_destroy :: proc(result: ^Parse_Result) {
+    // Free Error_Info strings in warnings array
+    for warning in result.warnings {
+        delete(warning.message)
+        delete(warning.ctx)
+    }
     delete(result.warnings)
+
+    // Free primary error strings (always allocated by make_error)
+    delete(result.error.message)
+    delete(result.error.ctx)
 }
 
 // Parser_Extended extends Parser with error handling capabilities
@@ -170,28 +197,86 @@ parser_extended_create :: proc() -> ^Parser_Extended {
 }
 
 parser_extended_destroy :: proc(parser: ^Parser_Extended) {
-    delete(parser.field_buffer)
+    if parser == nil do return
 
-    for row in parser.all_rows {
-        for field in row {
+    // Platform-specific cleanup (Windows VirtualAlloc is stricter than Unix mmap)
+    when ODIN_OS == .Windows {
+        // Windows requires extra validation to avoid "bad free" warnings
+        if len(parser.field_buffer) > 0 {
+            delete(parser.field_buffer)
+        }
+
+        // Free all row data with additional checks
+        if len(parser.all_rows) > 0 {
+            for row in parser.all_rows {
+                if len(row) > 0 {
+                    for field in row {
+                        if field != "" {
+                            delete(field)
+                        }
+                    }
+                    delete(row)
+                }
+            }
+            delete(parser.all_rows)
+        }
+
+        // Free any remaining fields in current_row
+        if len(parser.current_row) > 0 {
+            for field in parser.current_row {
+                if field != "" {
+                    delete(field)
+                }
+            }
+            delete(parser.current_row)
+        }
+
+        // Free Error_Info strings in warnings array
+        if len(parser.warnings) > 0 {
+            for warning in parser.warnings {
+                delete(warning.message)
+                delete(warning.ctx)
+            }
+            delete(parser.warnings)
+        }
+    } else {
+        // Standard cleanup for macOS/Linux
+        delete(parser.field_buffer)
+
+        for row in parser.all_rows {
+            for field in row {
+                delete(field)
+            }
+            delete(row)
+        }
+        delete(parser.all_rows)
+
+        for field in parser.current_row {
             delete(field)
         }
-        delete(row)
-    }
-    delete(parser.all_rows)
+        delete(parser.current_row)
 
-    for field in parser.current_row {
-        delete(field)
+        // Free Error_Info strings in warnings array
+        for warning in parser.warnings {
+            delete(warning.message)
+            delete(warning.ctx)
+        }
+        delete(parser.warnings)
     }
-    delete(parser.current_row)
 
-    delete(parser.warnings)
+    // Free last_error strings (from base Parser)
+    // Note: These are independent from warnings array and Parse_Result
+    // because record_error and make_error_result clone strings
+    delete(parser.last_error.message)
+    delete(parser.last_error.ctx)
 
     free(parser)
 }
 
 // record_error records an error in the extended parser
+// Takes ownership of err strings in last_error
 record_error :: proc(parser: ^Parser_Extended, err: Error_Info) -> bool {
+    // Store in last_error - takes ownership of err strings
     parser.last_error = err
     parser.error_count += 1
 
@@ -200,7 +285,11 @@ record_error :: proc(parser: ^Parser_Extended, err: Error_Info) -> bool {
         return false // Stop parsing
 
     case .Skip_Row:
-        append(&parser.warnings, err)
+        // Clone strings when appending to warnings (independent ownership)
+        err_copy := err
+        err_copy.message = strings.clone(err.message)
+        err_copy.ctx = strings.clone(err.ctx)
+        append(&parser.warnings, err_copy)
         // Clear current row and continue
         for field in parser.current_row {
             delete(field)
@@ -209,11 +298,19 @@ record_error :: proc(parser: ^Parser_Extended, err: Error_Info) -> bool {
         return true // Continue parsing
 
     case .Best_Effort:
-        append(&parser.warnings, err)
+        // Clone strings when appending to warnings (independent ownership)
+        err_copy := err
+        err_copy.message = strings.clone(err.message)
+        err_copy.ctx = strings.clone(err.ctx)
+        append(&parser.warnings, err_copy)
         return true // Continue parsing, keep partial data
 
     case .Collect_All_Errors:
-        append(&parser.warnings, err)
+        // Clone strings when appending to warnings (independent ownership)
+        err_copy := err
+        err_copy.message = strings.clone(err.message)
+        err_copy.ctx = strings.clone(err.ctx)
+        append(&parser.warnings, err_copy)
         if parser.max_errors > 0 && parser.error_count >= parser.max_errors {
             return false // Stop after max errors
         }
