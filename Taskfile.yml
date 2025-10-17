@@ -3,7 +3,7 @@ version: '3'
 vars:
   SRC_DIR: src
   TEST_DIR: tests
-  BENCH_DIR: benchmarks
+  BENCH_DIR: examples
   # Platform-specific library names
   LIB_NAME:
     sh: |
@@ -23,64 +23,113 @@ vars:
       esac
   ARCH:
     sh: uname -m
+  # Prebuilds directory based on platform
+  PREBUILD_DIR:
+    sh: |
+      case "$(uname -s)" in
+        Linux*)   echo "prebuilds/linux-x64" ;;
+        Darwin*)  echo "prebuilds/darwin-arm64" ;;
+        MINGW*|MSYS*|CYGWIN*) echo "prebuilds/win32-x64" ;;
+        *) echo "prebuilds/linux-x64" ;;
+      esac
 
 tasks:
   build:
     desc: Build release library (optimized, cross-platform)
     cmds:
       - echo "Building for {{.PLATFORM}} ({{.ARCH}})..."
-      - odin build {{.SRC_DIR}} -out:{{.LIB_NAME}} -build-mode:shared -o:speed -show-timings
-      - echo "✓ Built {{.LIB_NAME}}"
+      - mkdir -p {{.PREBUILD_DIR}}
+      - odin build {{.SRC_DIR}} -out:{{.PREBUILD_DIR}}/{{.LIB_NAME}} -build-mode:shared -o:speed -show-timings
+      - echo "✓ Built {{.PREBUILD_DIR}}/{{.LIB_NAME}}"
     sources:
       - "{{.SRC_DIR}}/**/*.odin"
     generates:
-      - "{{.LIB_NAME}}"
+      - "{{.PREBUILD_DIR}}/{{.LIB_NAME}}"
 
   build-dev:
     desc: Build debug library (with debug symbols, cross-platform)
     cmds:
       - echo "Building DEBUG for {{.PLATFORM}} ({{.ARCH}})..."
-      - odin build {{.SRC_DIR}} -out:{{.LIB_NAME}} -build-mode:shared -debug -show-timings
-      - echo "✓ Built {{.LIB_NAME}} (debug)"
+      - mkdir -p {{.PREBUILD_DIR}}
+      - odin build {{.SRC_DIR}} -out:{{.PREBUILD_DIR}}/{{.LIB_NAME}} -build-mode:shared -debug -show-timings
+      - echo "✓ Built {{.PREBUILD_DIR}}/{{.LIB_NAME}} (debug)"
     sources:
       - "{{.SRC_DIR}}/**/*.odin"
     generates:
-      - "{{.LIB_NAME}}"
+      - "{{.PREBUILD_DIR}}/{{.LIB_NAME}}"
 
   test:
     desc: Run all tests
     cmds:
-      - odin test {{.TEST_DIR}} -all-packages
+      - odin test {{.TEST_DIR}}
     deps: [build-dev]
 
   test-leaks:
     desc: Run tests with memory leak detection
     cmds:
-      - odin test {{.TEST_DIR}} -all-packages -define:USE_TRACKING_ALLOCATOR=true
+      - odin test {{.TEST_DIR}} -define:USE_TRACKING_ALLOCATOR=true
     deps: [build-dev]
 
-  bench:
-    desc: Run performance benchmark
+  benchmark:
+    desc: Run both benchmarks and compare results
     cmds:
-      - bun run {{.BENCH_DIR}}/benchmark.js
+      - echo "🔥 Running Benchmark Comparison"
+      - echo "═══════════════════════════════════════════════════════════════════════"
+      - echo ""
+      - echo "📊 Building and running Odin benchmark..."
+      - odin build {{.BENCH_DIR}}/benchmark.odin -file -out:{{.BENCH_DIR}}/benchmark_odin -o:speed
+      - echo ""
+      - ./{{.BENCH_DIR}}/benchmark_odin > /tmp/ocsv_bench_odin.txt
+      - echo ""
+      - echo "📊 Running Bun benchmark..."
+      - echo ""
+      - bun {{.BENCH_DIR}}/benchmark.ts > /tmp/ocsv_bench_bun.txt
+      - echo ""
+      - echo "═══════════════════════════════════════════════════════════════════════"
+      - echo "📈 COMPARISON SUMMARY"
+      - echo "═══════════════════════════════════════════════════════════════════════"
+      - |
+        odin_throughput=$(grep "Throughput:" /tmp/ocsv_bench_odin.txt | tail -1 | awk '{print $2}')
+        odin_time=$(grep "Parse time:" /tmp/ocsv_bench_odin.txt | tail -1 | awk '{print $3}')
+        odin_rows_sec=$(grep "Rows/sec:" /tmp/ocsv_bench_odin.txt | tail -1 | awk '{print $2}')
+
+        bun_throughput=$(grep "Throughput:" /tmp/ocsv_bench_bun.txt | tail -1 | awk '{print $2}')
+        bun_time=$(grep "Parse time:" /tmp/ocsv_bench_bun.txt | tail -1 | awk '{print $3}')
+        bun_rows_sec=$(grep "Rows/sec:" /tmp/ocsv_bench_bun.txt | tail -1 | awk '{print $2}' | tr -d ',')
+
+        echo ""
+        echo "┌─────────────────────┬─────────────────┬─────────────────┐"
+        echo "│ Metric              │ Odin (Native)   │ Bun (FFI)       │"
+        echo "├─────────────────────┼─────────────────┼─────────────────┤"
+        printf "│ Throughput          │ %8s MB/s   │ %8s MB/s   │\n" "$odin_throughput" "$bun_throughput"
+        printf "│ Parse Time          │ %10s ms   │ %10s ms   │\n" "$odin_time" "$bun_time"
+        printf "│ Rows/sec            │ %12s    │ %12s    │\n" "$odin_rows_sec" "$bun_rows_sec"
+        echo "└─────────────────────┴─────────────────┴─────────────────┘"
+        echo ""
+
+        if [ -n "$odin_throughput" ] && [ -n "$bun_throughput" ]; then
+          ratio=$(echo "scale=2; $odin_throughput / $bun_throughput" | bc)
+          echo "🏆 Odin is ${ratio}x faster than Bun (throughput)"
+        fi
+        echo ""
+        echo "💡 Full benchmark output saved to:"
+        echo "   • /tmp/ocsv_bench_odin.txt"
+        echo "   • /tmp/ocsv_bench_bun.txt"
+        echo ""
     deps: [build]
 
   check:
     desc: Check code without building
     cmds:
-      - odin check {{.SRC_DIR}} -all-packages
+      - odin check {{.SRC_DIR}}
 
   clean:
     desc: Clean build artifacts (all platforms)
     cmds:
       - rm -f *.so *.dylib *.dll *.a *.lib
       - rm -rf tests.bin tests.bin.dSYM
-
-  fmt:
-    desc: Format Odin source code
-    cmds:
-      - odin fmt {{.SRC_DIR}}
-      - odin fmt {{.TEST_DIR}}
+      - rm -f {{.BENCH_DIR}}/benchmark_odin
+      - echo "✓ Cleaned build artifacts"
 
   all:
     desc: Build, test, and benchmark

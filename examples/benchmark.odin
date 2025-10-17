@@ -18,7 +18,7 @@ BLUE    :: "\033[34m"
 main :: proc() {
 	// Parse command line arguments
 	args := os.args[1:]
-	csv_file := "./large_data.csv"
+	csv_file := "examples/large_data.csv"
 	if len(args) > 0 {
 		csv_file = args[0]
 	}
