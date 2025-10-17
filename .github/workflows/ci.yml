@@ -104,7 +104,7 @@ jobs:
         id: llvm-cache-mac
         with:
           path: ${{ matrix.llvm_path }}
-          key: llvm-${{ matrix.os }}-${{ env.LLVM_VERSION }}
+          key: llvm-${{ matrix.os }}-${{ env.LLVM_VERSION }}-v2
 
       - name: Install LLVM (macOS)
         if: startsWith(matrix.os, 'macos') && steps.llvm-cache-mac.outputs.cache-hit != 'true'
