@@ -113,7 +113,7 @@ parse_csv_stream :: proc(
 
 	for {
 		bytes_read, read_err := os.read(file, chunk_buffer)
-		if bytes_read == 0 && read_err != 0 {
+		if read_err != 0 || bytes_read <= 0 {
 			break
 		}
 
