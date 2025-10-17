@@ -1,9 +1,13 @@
-name: Publish to npm
+name: Publish to npm (LEGACY - Use Release Workflow Instead)
+
+# DEPRECATED: This workflow is kept for manual emergency releases only.
+# Normal releases should use .github/workflows/release.yml with semantic-release.
 
 on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:  # Allow manual trigger
 
 jobs:
   build:
