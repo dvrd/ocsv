@@ -1,63 +1,39 @@
-# Development files
-src/
+# Test files
 tests/
-plugins/
-examples/
-benchmarks/
-docs/
+test/
+*.test.js
+*.test.ts
+test-*.js
+benchmark_test/
 
 # Build artifacts
 *.o
 *.obj
-*.pdb
-*.ilk
-*.exp
-*.lib
+*.bin
+tests.bin
 
-# CI/CD
-.github/
-.gitlab-ci.yml
-.travis.yml
+# Large test data
+examples/large_data.csv
+bindings/examples/
 
-# Development tools
-.vscode/
-.idea/
-.DS_Store
-*.swp
-*.swo
-*~
+# Benchmark files
+benchmark.js
+benchmarks/
 
-# Task files
-Taskfile.yml
-Taskfile.yaml
-
-# Git
-.git/
-.gitignore
-.gitattributes
-
-# Documentation (not needed in npm package)
-CONTRIBUTING.md
-CODE_OF_CONDUCT.md
+# Documentation
+docs/
 CLAUDE.md
+LAZY_MODE_*.md
+README_BENCHMARK.md
+*.prp
 
-# Test data
-*.csv
-test_*.txt
+# Development
+.cursor/
+.vscode/
+.git/
+.github/
+.gitignore
+Taskfile.yml
 
-# Jujutsu VCS
-.jj/
-
-# Claude config
-.claude/
-
-# Root library (use prebuilds instead)
-libocsv.dylib
-libocsv.so
-ocsv.dll
-
-# Logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# Examples (keep the generator script)
+examples/sample_data.csv

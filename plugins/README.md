@@ -222,9 +222,9 @@ See `tests/test_plugin.odin` for examples of how to test plugins.
 
 ## Further Reading
 
-- [PRP-11 Specification](../docs/PRP-11-SPEC.md) - Complete plugin architecture design
-- [API Documentation](../docs/API.md) - Full API reference
-- [ARCHITECTURE_OVERVIEW.md](../docs/ARCHITECTURE_OVERVIEW.md) - Project architecture
+- [Main README](../README.md) - Project overview and quick start
+- [Source code](../src/plugin.odin) - Plugin system implementation
+- [Tests](../tests/test_plugin.odin) - Plugin tests and examples
 
 ## License
 

@@ -1,7 +1,7 @@
 {
   "name": "ocsv",
-  "version": "1.0.0",
-  "description": "High-performance RFC 4180 compliant CSV parser written in Odin with zero-copy FFI bindings for Bun",
+  "version": "1.1.0",
+  "description": "High-performance RFC 4180 compliant CSV parser with lazy mode for Bun. Parse 10M rows in 5s with minimal memory.",
   "main": "bindings/index.js",
   "types": "bindings/index.d.ts",
   "type": "module",
@@ -26,13 +26,16 @@
     "ffi",
     "bun",
     "streaming",
-    "high-performance"
+    "high-performance",
+    "lazy-evaluation",
+    "zero-copy",
+    "low-memory"
   ],
   "author": "Dan Villalobos <dan@devoured.io>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/dvrd/ocsv.git"
+    "url": "git+https://github.com/dvrd/ocsv.git"
   },
   "bugs": {
     "url": "https://github.com/dvrd/ocsv/issues"
@@ -41,7 +44,8 @@
   "scripts": {
     "build": "task build",
     "test": "bun test",
-    "bench": "bun run benchmarks/benchmark.js"
+    "bench": "bun benchmark.js",
+    "generate-data": "bun examples/generate_data.js"
   },
   "files": [
     "bindings/",
