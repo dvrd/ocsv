@@ -16,7 +16,32 @@ import { dirname, join } from "path";
 // Get library path relative to this file
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const libPath = join(__dirname, "..", `libocsv.${suffix}`);
+
+// Determine prebuilds directory based on platform and architecture
+const getPrebuildPath = (): string => {
+  const platform = process.platform;
+  const arch = process.arch;
+
+  let prebuildDir: string;
+  let libName: string;
+
+  if (platform === "darwin") {
+    prebuildDir = arch === "arm64" ? "darwin-arm64" : "darwin-x64";
+    libName = "libocsv.dylib";
+  } else if (platform === "linux") {
+    prebuildDir = "linux-x64";
+    libName = "libocsv.so";
+  } else if (platform === "win32") {
+    prebuildDir = "win32-x64";
+    libName = "ocsv.dll";
+  } else {
+    throw new Error(`Unsupported platform: ${platform}`);
+  }
+
+  return join(__dirname, "..", "prebuilds", prebuildDir, libName);
+};
+
+const libPath = getPrebuildPath();
 
 // Load OCSV library
 const lib = dlopen(libPath, {

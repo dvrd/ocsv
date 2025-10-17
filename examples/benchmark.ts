@@ -24,7 +24,7 @@ import { readFileSync, existsSync, statSync } from "fs";
 // ============================================================================
 
 const args = process.argv.slice(2);
-const CSV_FILE = args[0] || "./large_data.csv";
+const CSV_FILE = args[0] || "examples/large_data.csv";
 
 // ============================================================================
 // File validation

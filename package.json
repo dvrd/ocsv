@@ -1,6 +1,6 @@
 {
   "name": "ocsv",
-  "version": "1.1.1",
+  "version": "0.0.0-development",
   "description": "High-performance RFC 4180 compliant CSV parser with lazy mode for Bun. Parse 10M rows in 5s with minimal memory.",
   "main": "bindings/index.js",
   "types": "bindings/index.d.ts",
@@ -45,15 +45,32 @@
     "build": "task build",
     "test": "bun test",
     "bench": "bun benchmark.js",
-    "generate-data": "bun examples/generate_data.js"
+    "generate-data": "bun examples/generate_data.js",
+    "release:dry": "semantic-release --dry-run --no-ci",
+    "commitlint": "commitlint --from HEAD~1 --to HEAD --verbose",
+    "commitlint:help": "echo 'Examples:\\n  feat: add streaming mode\\n  fix: handle empty fields\\n  docs: update README\\n\\nRun: npm run commitlint to validate last commit'"
   },
   "files": [
     "bindings/",
     "prebuilds/",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md"
   ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "devDependencies": {
-    "bun-types": "latest"
+    "bun-types": "latest",
+    "semantic-release": "^24.2.0",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^13.0.0",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^11.0.0",
+    "@semantic-release/npm": "^12.0.1",
+    "@semantic-release/release-notes-generator": "^14.0.1",
+    "@commitlint/cli": "^19.8.1",
+    "@commitlint/config-conventional": "^20.0.0"
   }
 }
