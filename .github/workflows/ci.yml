@@ -156,11 +156,7 @@ jobs:
           git clone --depth=1 https://github.com/odin-lang/Odin.git
           cd Odin
           # Set LLVM_CONFIG explicitly for build script
-          if [ "$RUNNER_OS" == "macOS" ]; then
-            export LLVM_CONFIG="$(brew --prefix llvm@${{ env.LLVM_VERSION }})/bin/llvm-config"
-          else
-            export LLVM_CONFIG="${{ matrix.llvm_path }}/bin/llvm-config"
-          fi
+          export LLVM_CONFIG="${{ matrix.llvm_path }}/bin/llvm-config"
           ./build_odin.sh release
 
       - name: Add Odin to PATH (Unix)
