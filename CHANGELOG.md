@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2025-10-17
+
+### 🐛 Bug Fixes & Improvements
+
+This patch release addresses critical memory corruption issues and significantly improves CI performance.
+
+### Fixed
+- **Memory Corruption**: Fixed string ownership model in Error_Info structures
+  - `make_error()` now always clones strings for consistent ownership
+  - `make_error_result()` independently clones error strings to prevent double-free
+  - Added `error_info_destroy()` helper for proper cleanup
+- **Platform-Specific Memory Management**: Implemented conditional cleanup for Windows (VirtualAlloc stricter than Unix mmap)
+- **Test Memory Leaks**: Fixed cleanup in `destroy_test_context()` to free Error_Info strings
+- **Empty Input Error**: Fixed orphaned error string in empty input handling
+
+### Changed
+- **CI Performance**: Reduced workflow time from ~18 min to 8m 28s (53% improvement)
+  - Implemented comprehensive caching (LLVM, Odin compiler)
+  - Added fail-fast lint job before matrix builds
+  - Platform-specific cache keys for better hit rates
+
+### Added
+- **Cross-Platform Prebuilds**: All platforms now available in npm package
+  - macOS ARM64: `libocsv.dylib` (69 KB)
+  - Linux x64: `libocsv.so` (39 KB)
+  - Windows x64: `ocsv.dll` (122 KB)
+- **Test Coverage**: Re-enabled 31 additional tests (+69% increase)
+  - `test_stress.odin` (14 stress tests)
+  - `test_error_handling.odin` (20 error handling tests)
+  - `test_streaming.odin` (17 streaming tests)
+
+### Quality Metrics
+- ✅ **Tests**: 75/76 passing (98.7%)
+- ✅ **Memory**: 0 leaks, 0 "bad free" warnings
+- ✅ **Platforms**: macOS ARM64, Linux x64, Windows x64
+- ⚠️ **Known Issue**: 1 flaky concurrent test (passes in isolation)
+
+---
+
 ## [1.0.0] - 2025-01-16
 
 ### 🎉 Production Release
@@ -119,5 +158,6 @@ ocsv/
 - [Issues](https://github.com/dvrd/ocsv/issues)
 - [NPM Package](https://www.npmjs.com/package/ocsv)
 
+[1.1.1]: https://github.com/dvrd/ocsv/releases/tag/v1.1.1
 [1.0.0]: https://github.com/dvrd/ocsv/releases/tag/v1.0.0
 [0.1.0]: https://github.com/dvrd/ocsv/releases/tag/v0.1.0
