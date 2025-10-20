@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.1.0 (2025-10-20)
+
+* fix: add contents write permission for GitHub release creation ([ff4b7c8](https://github.com/dvrd/ocsv/commit/ff4b7c8))
+* fix: add LLVM library paths and prepare v1.1.1 npm package ([9fb6bad](https://github.com/dvrd/ocsv/commit/9fb6bad))
+* fix: add missing warnings cleanup in parser_extended_destroy ([5b3d15c](https://github.com/dvrd/ocsv/commit/5b3d15c))
+* fix: also disable streaming tests using Error_Info ([8a44b38](https://github.com/dvrd/ocsv/commit/8a44b38))
+* fix: disable all advanced feature tests, keep only basic parser tests ([ac51d5e](https://github.com/dvrd/ocsv/commit/ac51d5e))
+* fix: disable all tests except parser and edge_cases (minimal test set) ([ed41c70](https://github.com/dvrd/ocsv/commit/ed41c70))
+* fix: disable Collect_All_Errors tests due to crash ([205c6f1](https://github.com/dvrd/ocsv/commit/205c6f1))
+* fix: disable entire error handling test file ([8dd5f27](https://github.com/dvrd/ocsv/commit/8dd5f27))
+* fix: disable error_handling and streaming tests (depend on disabled source files) ([9bcb049](https://github.com/dvrd/ocsv/commit/9bcb049))
+* fix: disable parser_error.odin source file temporarily ([67296a7](https://github.com/dvrd/ocsv/commit/67296a7))
+* fix: handle negative bytes_read in streaming parser ([749fc3f](https://github.com/dvrd/ocsv/commit/749fc3f))
+* fix: implement CI caching and resolve memory corruption in error handling ([6894e98](https://github.com/dvrd/ocsv/commit/6894e98))
+* fix: invalidate macOS LLVM cache to force fresh install ([7b023e2](https://github.com/dvrd/ocsv/commit/7b023e2))
+* fix: remove registry-url from setup-node to fix npm authentication ([c5f2bbd](https://github.com/dvrd/ocsv/commit/c5f2bbd))
+* fix: resolve infinite recursion in SIMD parser and re-enable all tests ([a16652c](https://github.com/dvrd/ocsv/commit/a16652c))
+* fix: set LLVM_CONFIG env var when building Odin compiler ([76b9fde](https://github.com/dvrd/ocsv/commit/76b9fde))
+* fix: temporarily disable parallel and stress tests ([715b298](https://github.com/dvrd/ocsv/commit/715b298))
+* fix: use matrix.llvm_path directly for LLVM_CONFIG (both platforms) ([604e826](https://github.com/dvrd/ocsv/commit/604e826))
+* fix: Windows PowerShell UTF-8 and Lint check issues ([96c9a93](https://github.com/dvrd/ocsv/commit/96c9a93))
+* chore: add benchmarks, simple bindings, and documentation improvements ([3d5aed5](https://github.com/dvrd/ocsv/commit/3d5aed5))
+* chore: remove temporary files and old documentation ([4625fb0](https://github.com/dvrd/ocsv/commit/4625fb0))
+* chore: trigger release after npm token fix ([271e34a](https://github.com/dvrd/ocsv/commit/271e34a))
+* chore: trigger release workflow ([d073927](https://github.com/dvrd/ocsv/commit/d073927))
+* chore: update package configuration ([ec85493](https://github.com/dvrd/ocsv/commit/ec85493))
+* chore: update prebuilds from CI workflow (all platforms) ([2bdc4b3](https://github.com/dvrd/ocsv/commit/2bdc4b3))
+* chore: verify npm token configuration ([7751017](https://github.com/dvrd/ocsv/commit/7751017))
+* feat: add semantic release configuration ([10349f0](https://github.com/dvrd/ocsv/commit/10349f0))
+* feat: implement automated release management ([f376df3](https://github.com/dvrd/ocsv/commit/f376df3))
+* build: update prebuilt binaries for all platforms ([d88e943](https://github.com/dvrd/ocsv/commit/d88e943))
+* refactor: improve examples and tooling ([a9dcb3a](https://github.com/dvrd/ocsv/commit/a9dcb3a))
+* docs: add NPM publishing guide and contribution guidelines ([3c821f3](https://github.com/dvrd/ocsv/commit/3c821f3))
+* ci: optimize GitHub Actions workflows ([02b501c](https://github.com/dvrd/ocsv/commit/02b501c))
+
 ## [1.1.1] - 2025-10-17
 
 ### 🐛 Bug Fixes & Improvements
