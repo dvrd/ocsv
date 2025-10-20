@@ -2,7 +2,9 @@
 
 A high-performance, RFC 4180 compliant CSV parser written in Odin with Bun FFI support.
 
-[![npm version](https://img.shields.io/npm/v/ocsv)](https://www.npmjs.com/package/ocsv)
+[![Release](https://github.com/dvrd/ocsv/actions/workflows/release.yml/badge.svg)](https://github.com/dvrd/ocsv/releases)
+[![npm version](https://badge.fury.io/js/ocsv.svg)](https://www.npmjs.com/package/ocsv)
+[![CI](https://github.com/dvrd/ocsv/actions/workflows/ci.yml/badge.svg)](https://github.com/dvrd/ocsv/actions)
 [![Tests](https://img.shields.io/badge/tests-201%20passing-brightgreen)]()
 [![Memory Leaks](https://img.shields.io/badge/memory%20leaks-0-brightgreen)]()
 [![RFC 4180](https://img.shields.io/badge/RFC%204180-compliant-blue)]()
@@ -531,9 +533,70 @@ ocsv/
 - **Platform:** macOS ARM64 (cross-platform support in development)
 - **Task:** v3+ (optional, for automated builds)
 
+## Release Process
+
+This project uses automated releases via [semantic-release](https://github.com/semantic-release/semantic-release). Releases are triggered automatically when changes are pushed to the `main` branch.
+
+### Commit Message Format
+
+All commits must follow [Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+**Examples:**
+```bash
+git commit -m "feat: add streaming parser API"
+git commit -m "fix: handle empty fields correctly"
+git commit -m "docs: update installation instructions"
+git commit -m "feat!: remove deprecated parseFile method
+
+BREAKING CHANGE: parseFile has been removed, use parseCSVFile instead"
+```
+
+**Commit Types:**
+- `feat:` New feature (triggers minor version bump)
+- `fix:` Bug fix (triggers patch version bump)
+- `perf:` Performance improvement (triggers patch version bump)
+- `docs:` Documentation changes (no release)
+- `chore:` Maintenance tasks (no release)
+- `refactor:` Code refactoring (no release)
+- `test:` Test changes (no release)
+- `ci:` CI/CD changes (no release)
+
+### Version Bumps
+
+- **Patch (1.1.0 → 1.1.1):** `fix:`, `perf:`
+- **Minor (1.1.0 → 1.2.0):** `feat:`
+- **Major (1.1.0 → 2.0.0):** Any commit with `BREAKING CHANGE:` in footer or `!` after type
+
+### Release Workflow
+
+1. Developer pushes commits to `main` branch
+2. CI runs tests and builds
+3. semantic-release analyzes commits
+4. If releasable changes found:
+   - Determines new version number
+   - Updates CHANGELOG.md
+   - Updates package.json
+   - Creates git tag
+   - Publishes to npm with provenance
+   - Creates GitHub release with prebuilt binaries
+
+**Manual Release (Emergency Only):**
+```bash
+npm run release:dry  # Test what would be released
+git push origin main  # Trigger automated release
+```
+
 ## Contributing
 
-Contributions are welcome!
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines on commit messages and pull request process.
 
 **Development Workflow:**
 1. Fork the repository
