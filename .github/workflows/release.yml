@@ -65,13 +65,23 @@ jobs:
         id: llvm-cache-mac
         with:
           path: ${{ matrix.llvm_path }}
-          key: llvm-${{ matrix.os }}-${{ env.LLVM_VERSION }}-v2
+          key: llvm-${{ matrix.os }}-${{ env.LLVM_VERSION }}-v3
 
       - name: Install LLVM (macOS)
         if: startsWith(matrix.os, 'macos') && steps.llvm-cache-mac.outputs.cache-hit != 'true'
         run: |
           brew update
           brew install llvm@${{ env.LLVM_VERSION }}
+
+      - name: Verify LLVM installation (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          if [ ! -f "${{ matrix.llvm_path }}/bin/llvm-config" ]; then
+            echo "LLVM not found, reinstalling..."
+            brew update
+            brew install llvm@${{ env.LLVM_VERSION }}
+          fi
+          ${{ matrix.llvm_path }}/bin/llvm-config --version
 
       - name: Add LLVM to PATH (macOS)
         if: startsWith(matrix.os, 'macos')
