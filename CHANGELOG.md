@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [1.2.0] - 2025-10-27
+
 ### ⚡ Performance
 
 **Phase 2: Packed Buffer FFI Optimization - Zero-Copy Deserialization**
@@ -278,6 +282,7 @@ ocsv/
 - [Issues](https://github.com/dvrd/ocsv/issues)
 - [NPM Package](https://www.npmjs.com/package/ocsv)
 
+[1.2.0]: https://github.com/dvrd/ocsv/releases/tag/v1.2.0
 [1.1.1]: https://github.com/dvrd/ocsv/releases/tag/v1.1.1
 [1.0.0]: https://github.com/dvrd/ocsv/releases/tag/v1.0.0
 [0.1.0]: https://github.com/dvrd/ocsv/releases/tag/v0.1.0
