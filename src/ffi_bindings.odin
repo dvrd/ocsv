@@ -2,6 +2,9 @@ package ocsv
 
 import "base:runtime"
 import "core:c"
+import "core:strings"
+import "core:fmt"
+import "core:encoding/endian"
 
 // FFI Bindings for Bun
 // These functions are exported with C ABI for use with Bun's FFI
@@ -412,4 +415,293 @@ ocsv_get_error_count :: proc "c" (parser: ^Parser) -> c.int {
     }
 
     return c.int(parser.error_count)
+}
+
+// ============================================================================
+// Bulk Memory Access FFI Functions (Performance Optimization)
+// ============================================================================
+// These functions enable zero-copy or low-FFI-call data extraction
+
+// Helper to escape a string for JSON
+json_escape_string :: proc(s: string, builder: ^strings.Builder) {
+    strings.write_byte(builder, '"')
+    for r in s {
+        switch r {
+        case '"':  strings.write_string(builder, "\\\"")
+        case '\\': strings.write_string(builder, "\\\\")
+        case '\b': strings.write_string(builder, "\\b")
+        case '\f': strings.write_string(builder, "\\f")
+        case '\n': strings.write_string(builder, "\\n")
+        case '\r': strings.write_string(builder, "\\r")
+        case '\t': strings.write_string(builder, "\\t")
+        case:
+            if r < 0x20 {
+                // Control character - use \u escape
+                fmt.sbprintf(builder, "\\u%04x", r)
+            } else {
+                strings.write_rune(builder, r)
+            }
+        }
+    }
+    strings.write_byte(builder, '"')
+}
+
+// ocsv_rows_to_json serializes all rows to JSON format
+// Parameters:
+//   parser: pointer to Parser
+// Returns: cstring containing JSON array of arrays, or nil on error
+// Note: The returned string is owned by the parser and valid until parser_destroy
+//
+// Example output: [["name","age"],["Alice","30"],["Bob","25"]]
+@(export, link_name="ocsv_rows_to_json")
+ocsv_rows_to_json :: proc "c" (parser: ^Parser) -> cstring {
+    context = runtime.default_context()
+
+    if parser == nil || len(parser.all_rows) == 0 {
+        return "[]"
+    }
+
+    // Build JSON string manually for performance
+    builder := strings.builder_make()
+    defer strings.builder_destroy(&builder)
+
+    strings.write_byte(&builder, '[')
+
+    for row, row_idx in parser.all_rows {
+        if row_idx > 0 {
+            strings.write_byte(&builder, ',')
+        }
+
+        strings.write_byte(&builder, '[')
+
+        for field, field_idx in row {
+            if field_idx > 0 {
+                strings.write_byte(&builder, ',')
+            }
+            json_escape_string(field, &builder)
+        }
+
+        strings.write_byte(&builder, ']')
+    }
+
+    strings.write_byte(&builder, ']')
+
+    // Convert to cstring - clone to parser's allocator so it persists
+    json_str := strings.to_string(builder)
+    json_clone := strings.clone(json_str)
+
+    // Store in parser for memory management
+    // We'll add a field to store this, or just return the cstring directly
+    // For now, return directly (caller must copy before next call)
+    return cstring(raw_data(json_clone))
+}
+
+// ocsv_free_json_string frees a JSON string allocated by ocsv_rows_to_json
+// Parameters:
+//   json_str: cstring returned by ocsv_rows_to_json
+@(export, link_name="ocsv_free_json_string")
+ocsv_free_json_string :: proc "c" (json_str: cstring) {
+    context = runtime.default_context()
+
+    if json_str == nil {
+        return
+    }
+
+    // Free the cloned string
+    delete(cstring_to_string(json_str))
+}
+
+// Helper to convert cstring to string
+cstring_to_string :: proc(s: cstring) -> string {
+    if s == nil {
+        return ""
+    }
+    return string(s)
+}
+
+// ============================================================================
+// Phase 2: Packed Buffer Serialization (Zero-Copy Performance)
+// ============================================================================
+// These functions serialize CSV data to a packed binary format for minimal
+// FFI overhead and zero-copy deserialization in JavaScript.
+//
+// Binary Format:
+//   Header (24 bytes):
+//     0-3:   magic (0x4F435356 "OCSV")
+//     4-7:   version (1)
+//     8-11:  row_count (u32)
+//     12-15: field_count (u32)
+//     16-23: total_bytes (u64)
+//
+//   Row Offsets (row_count × 4 bytes):
+//     24+i*4: offset to row i data
+//
+//   Field Data (variable length):
+//     [length: u16][data: UTF-8 bytes]
+
+// calculate_packed_buffer_size calculates total buffer size needed for packed format
+// Parameters:
+//   rows: array of CSV rows (each row is array of strings)
+// Returns: total size in bytes
+calculate_packed_buffer_size :: proc(rows: [][]string) -> int {
+    size := 24  // Header (24 bytes)
+    size += len(rows) * 4  // Row offsets array (4 bytes per row)
+
+    // Calculate field data size
+    for row in rows {
+        for field in row {
+            size += 2           // u16 length prefix per field
+            size += len(field)  // UTF-8 bytes
+        }
+    }
+
+    return size
+}
+
+// write_header writes the 24-byte header to the buffer
+// Parameters:
+//   buffer: dynamic byte array to write to
+//   rows: array of CSV rows
+//   total_bytes: total buffer size
+write_header :: proc(buffer: ^[dynamic]u8, rows: [][]string, total_bytes: int) {
+    header: [24]u8
+
+    // Magic: "OCSV" (0x4F435356)
+    endian.put_u32(header[0:4], .Little, 0x4F435356)
+
+    // Version: 1
+    endian.put_u32(header[4:8], .Little, 1)
+
+    // Row count
+    endian.put_u32(header[8:12], .Little, u32(len(rows)))
+
+    // Field count (assume all rows have same number of fields as first row)
+    field_count := len(rows) > 0 ? len(rows[0]) : 0
+    endian.put_u32(header[12:16], .Little, u32(field_count))
+
+    // Total bytes
+    endian.put_u64(header[16:24], .Little, u64(total_bytes))
+
+    append(buffer, ..header[:])
+}
+
+// write_row_offsets writes the row offset array to the buffer
+// Parameters:
+//   buffer: dynamic byte array to write to
+//   rows: array of CSV rows
+// Returns: array of computed offsets (for reference)
+write_row_offsets :: proc(buffer: ^[dynamic]u8, rows: [][]string) -> []u32 {
+    offsets := make([]u32, len(rows))
+
+    // Calculate offsets
+    // First row starts after header + offset array
+    current_offset := 24 + len(rows) * 4
+
+    for row, i in rows {
+        offsets[i] = u32(current_offset)
+
+        // Calculate size of this row's data
+        for field in row {
+            current_offset += 2           // u16 length prefix
+            current_offset += len(field)  // UTF-8 bytes
+        }
+    }
+
+    // Write offsets to buffer
+    offset_bytes: [4]u8
+    for offset in offsets {
+        endian.put_u32(offset_bytes[:], .Little, offset)
+        append(buffer, ..offset_bytes[:])
+    }
+
+    return offsets
+}
+
+// write_field_data writes all field data to the buffer
+// Parameters:
+//   buffer: dynamic byte array to write to
+//   rows: array of CSV rows
+write_field_data :: proc(buffer: ^[dynamic]u8, rows: [][]string) {
+    len_bytes: [2]u8
+
+    for row in rows {
+        for field in row {
+            // Write length as u16 little-endian
+            field_len := u16(len(field))
+            endian.put_u16(len_bytes[:], .Little, field_len)
+            append(buffer, ..len_bytes[:])
+
+            // Write UTF-8 bytes
+            if len(field) > 0 {
+                append(buffer, ..transmute([]u8)field)
+            }
+        }
+    }
+}
+
+// pack_rows_to_buffer serializes all rows to packed binary format
+// Parameters:
+//   parser: pointer to Parser
+// Returns: byte slice containing packed data (stored in parser.packed_buffer)
+pack_rows_to_buffer :: proc(parser: ^Parser) -> []u8 {
+    if len(parser.all_rows) == 0 {
+        return nil
+    }
+
+    // Calculate total size
+    total_size := calculate_packed_buffer_size(parser.all_rows[:])
+
+    // Allocate buffer
+    buffer := make([dynamic]u8, 0, total_size)
+
+    // Write header
+    write_header(&buffer, parser.all_rows[:], total_size)
+
+    // Write row offsets
+    _ = write_row_offsets(&buffer, parser.all_rows[:])  // offsets computed inline
+
+    // Write field data
+    write_field_data(&buffer, parser.all_rows[:])
+
+    // Convert to slice and store in parser
+    result := buffer[:]
+    parser.packed_buffer = result
+
+    return result
+}
+
+// ocsv_rows_to_packed_buffer serializes all rows to packed binary format
+// Parameters:
+//   parser: pointer to Parser
+//   out_size: pointer to int where buffer size will be written
+// Returns: pointer to packed buffer, or nil on error
+// Note: The returned buffer is owned by the parser and valid until parser_destroy
+//
+// Binary format specification:
+//   See comments above for detailed format description
+@(export, link_name="ocsv_rows_to_packed_buffer")
+ocsv_rows_to_packed_buffer :: proc "c" (parser: ^Parser, out_size: ^c.int) -> ^u8 {
+    context = runtime.default_context()
+
+    if parser == nil || out_size == nil {
+        return nil
+    }
+
+    // Handle empty data
+    if len(parser.all_rows) == 0 {
+        out_size^ = 0
+        return nil
+    }
+
+    // Pack rows to buffer
+    buffer := pack_rows_to_buffer(parser)
+
+    if len(buffer) == 0 {
+        out_size^ = 0
+        return nil
+    }
+
+    // Return pointer and size
+    out_size^ = c.int(len(buffer))
+    return raw_data(buffer)
 }

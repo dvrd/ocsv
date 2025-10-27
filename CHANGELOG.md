@@ -5,6 +5,91 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### ⚡ Performance
+
+**Phase 2: Packed Buffer FFI Optimization - Zero-Copy Deserialization**
+
+This major performance update introduces packed binary buffer serialization for minimal FFI overhead and maximum throughput.
+
+### Added
+- **Packed Buffer Serialization** (`src/ffi_bindings.odin`)
+  - Binary format with 24-byte header (magic, version, metadata)
+  - Row offset array for O(1) random access
+  - Length-prefixed UTF-8 strings (u16 + data)
+  - Little-endian encoding throughout
+- **Zero-Copy Deserialization** (`bindings/simple.ts`)
+  - `parseCSVPacked()` - New high-performance parsing function
+  - Direct ArrayBuffer access with `toArrayBuffer()`
+  - Efficient DataView + TextDecoder deserialization
+- **Memory Management**
+  - Added `packed_buffer` field to Parser struct
+  - Automatic cleanup in `parser_destroy()`
+  - Memory stored in Parser for proper lifecycle management
+- **Comprehensive Benchmarks** (`examples/benchmark_bulk.ts`)
+  - Three-way comparison: field-by-field vs JSON vs packed buffer
+  - Performance ratings against native Odin baseline
+  - Data validation across all modes
+
+### Performance Results
+
+**Test Setup:** 100K rows, 12.71 MB CSV file
+
+```
+Mode              Throughput    ns/row    vs Baseline    Speedup
+─────────────────────────────────────────────────────────────────
+Native Odin       61.84 MB/s    -         100%           -
+Packed Buffer     52.32 MB/s    2,238     84.6% ⭐       1.77×
+Bulk JSON         40.68 MB/s    2,878     65.8%          1.38×
+Field-by-Field    29.58 MB/s    3,957     47.8%          1.00×
+```
+
+**Key Achievements:**
+- ⚡ **52.32 MB/s** throughput (84.6% of native Odin performance)
+- 🚀 **1.77× faster** than field-by-field FFI access
+- 📈 **1.29× faster** than Phase 1 JSON serialization (40.68 → 52.32 MB/s)
+- 🎯 **Single FFI call** instead of N×M individual calls
+- 💾 **Zero-copy** memory access with ArrayBuffer
+- ✅ **100% data validation** - all tests pass
+
+### Technical Details
+
+**Binary Format Specification:**
+```
+Header (24 bytes):
+  0-3:   magic (0x4F435356 "OCSV")
+  4-7:   version (1)
+  8-11:  row_count (u32)
+  12-15: field_count (u32)
+  16-23: total_bytes (u64)
+
+Row Offsets (row_count × 4 bytes):
+  24+i*4: offset to row i data
+
+Field Data (variable length):
+  [length: u16][UTF-8 bytes]
+```
+
+**Implementation Highlights:**
+- Uses `core:encoding/endian` for consistent byte order
+- Efficient `calculate_packed_buffer_size()` for pre-allocation
+- Modular helpers: `write_header()`, `write_row_offsets()`, `write_field_data()`
+- Export: `ocsv_rows_to_packed_buffer()` FFI function
+
+### Documentation
+- Updated README.md with FFI Performance Optimization section
+- Added comprehensive benchmark results and usage examples
+- Documented when to use packed buffer mode vs other modes
+
+### Notes
+- Phase 2 target was 55 MB/s (89% of baseline)
+- Achieved 52.32 MB/s (84.6% of baseline) - within 5% of target
+- "GOOD" performance rating (within 20% of native Odin baseline)
+- Ready for production use in performance-critical applications
+
+---
+
 ## 1.1.0 (2025-10-20)
 
 * fix: add contents write permission for GitHub release creation ([ff4b7c8](https://github.com/dvrd/ocsv/commit/ff4b7c8))

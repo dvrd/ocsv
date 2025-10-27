@@ -479,3 +479,6 @@ export { OcsvError, ParseErrorCode };
 
 // Export lib for internal use by lazy.js
 export { lib };
+
+// Export advanced performance functions (Phase 2)
+export { parseCSVPacked, parseCSVBulk } from "./simple.ts";

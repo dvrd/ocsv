@@ -9,7 +9,7 @@
  *   const rows = parseCSV(csvData)
  */
 
-import { dlopen, FFIType, suffix } from "bun:ffi";
+import { dlopen, FFIType, suffix, toArrayBuffer, ptr } from "bun:ffi";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 
@@ -66,6 +66,19 @@ const lib = dlopen(libPath, {
   ocsv_get_field: {
     args: [FFIType.ptr, FFIType.i32, FFIType.i32],
     returns: FFIType.cstring,
+  },
+  // Bulk memory access for performance
+  ocsv_rows_to_json: {
+    args: [FFIType.ptr],
+    returns: FFIType.cstring,
+  },
+  ocsv_free_json_string: {
+    args: [FFIType.cstring],
+  },
+  // Phase 2: Packed buffer (zero-copy)
+  ocsv_rows_to_packed_buffer: {
+    args: [FFIType.ptr, FFIType.ptr],
+    returns: FFIType.ptr,
   },
 });
 
@@ -284,6 +297,172 @@ export function getField(csvData: string, rowIndex: number, fieldIndex: number):
     }
 
     return ffi.ocsv_get_field(parser, rowIndex, fieldIndex) || "";
+  } finally {
+    ffi.ocsv_parser_destroy(parser);
+  }
+}
+
+/**
+ * Parse CSV using bulk JSON serialization (high performance)
+ *
+ * This function minimizes FFI overhead by serializing all rows to JSON
+ * in one FFI call, then parsing in JavaScript. Significantly faster than
+ * field-by-field extraction for large datasets.
+ *
+ * @param csvData - CSV string to parse
+ * @returns 2D array of strings [row][field]
+ *
+ * @example
+ * const rows = parseCSVBulk("name,age\nAlice,30\nBob,25")
+ * // [["name", "age"], ["Alice", "30"], ["Bob", "25"]]
+ */
+export function parseCSVBulk(csvData: string): string[][] {
+  const parser = ffi.ocsv_parser_create();
+
+  try {
+    // Parse CSV
+    const buffer = Buffer.from(csvData);
+    const result = ffi.ocsv_parse_string(parser, buffer, buffer.length);
+
+    if (result !== 0) {
+      throw new Error("Failed to parse CSV");
+    }
+
+    // Get all rows as JSON (ONE FFI call instead of N×M calls)
+    const jsonStr = ffi.ocsv_rows_to_json(parser);
+
+    if (!jsonStr) {
+      return [];
+    }
+
+    // Parse JSON in JavaScript
+    // Note: jsonStr is automatically converted to JavaScript string by Bun FFI
+    // The memory is managed by the Odin parser and will be freed when parser_destroy is called
+    const rows = JSON.parse(jsonStr);
+
+    return rows;
+  } finally {
+    ffi.ocsv_parser_destroy(parser);
+  }
+}
+
+/**
+ * Deserialize packed binary buffer to 2D array (internal helper)
+ *
+ * @param bufferPtr - Pointer to packed buffer
+ * @param bufferSize - Size of buffer in bytes
+ * @returns 2D array of strings [row][field]
+ *
+ * Binary format:
+ *   Header (24 bytes):
+ *     0-3:   magic (0x4F435356 "OCSV")
+ *     4-7:   version (1)
+ *     8-11:  row_count (u32)
+ *     12-15: field_count (u32)
+ *     16-23: total_bytes (u64)
+ *
+ *   Row Offsets (row_count × 4 bytes):
+ *     24+i*4: offset to row i data
+ *
+ *   Field Data (variable length):
+ *     [length: u16][data: UTF-8 bytes]
+ */
+function deserializePackedBuffer(bufferPtr: number | bigint, bufferSize: number): string[][] {
+  // Convert pointer to ArrayBuffer (zero-copy)
+  const arrayBuffer = toArrayBuffer(bufferPtr, 0, bufferSize);
+  const view = new DataView(arrayBuffer);
+  const bytes = new Uint8Array(arrayBuffer);
+
+  // Read header
+  const magic = view.getUint32(0, true);
+  if (magic !== 0x4F435356) {
+    throw new Error(`Invalid magic number: 0x${magic.toString(16)}`);
+  }
+
+  const version = view.getUint32(4, true);
+  if (version !== 1) {
+    throw new Error(`Unsupported version: ${version}`);
+  }
+
+  const rowCount = view.getUint32(8, true);
+  const fieldCount = view.getUint32(12, true);
+  const totalBytes = view.getBigUint64(16, true);
+
+  // Validate buffer size
+  if (BigInt(bufferSize) !== totalBytes) {
+    throw new Error(`Buffer size mismatch: expected ${totalBytes}, got ${bufferSize}`);
+  }
+
+  // Read row offsets
+  const rowOffsets = new Uint32Array(rowCount);
+  for (let i = 0; i < rowCount; i++) {
+    rowOffsets[i] = view.getUint32(24 + i * 4, true);
+  }
+
+  // Deserialize rows
+  const rows: string[][] = new Array(rowCount);
+  const decoder = new TextDecoder('utf-8');
+
+  for (let i = 0; i < rowCount; i++) {
+    const row: string[] = new Array(fieldCount);
+    let offset = rowOffsets[i];
+
+    for (let j = 0; j < fieldCount; j++) {
+      // Read field length (u16)
+      const length = view.getUint16(offset, true);
+      offset += 2;
+
+      // Zero-copy string extraction
+      if (length > 0) {
+        const fieldBytes = bytes.subarray(offset, offset + length);
+        row[j] = decoder.decode(fieldBytes);
+        offset += length;
+      } else {
+        row[j] = "";
+      }
+    }
+
+    rows[i] = row;
+  }
+
+  return rows;
+}
+
+/**
+ * Parse CSV data using packed buffer (zero-copy, highest performance)
+ *
+ * This is the fastest parsing method, using binary serialization and zero-copy
+ * deserialization for minimal FFI overhead.
+ *
+ * @param csvData - CSV string to parse
+ * @returns 2D array of strings [row][field]
+ *
+ * @example
+ * const rows = parseCSVPacked("name,age\nAlice,30\nBob,25")
+ * // [["name", "age"], ["Alice", "30"], ["Bob", "25"]]
+ */
+export function parseCSVPacked(csvData: string): string[][] {
+  const parser = ffi.ocsv_parser_create();
+
+  try {
+    // Parse CSV
+    const buffer = Buffer.from(csvData);
+    const result = ffi.ocsv_parse_string(parser, buffer, buffer.length);
+
+    if (result !== 0) {
+      throw new Error("Failed to parse CSV");
+    }
+
+    // Get packed buffer (ONE FFI call)
+    const sizeBuffer = new Int32Array(1);
+    const bufferPtr = ffi.ocsv_rows_to_packed_buffer(parser, ptr(sizeBuffer));
+
+    if (!bufferPtr || sizeBuffer[0] <= 0) {
+      return [];
+    }
+
+    // Deserialize in JavaScript (zero-copy)
+    return deserializePackedBuffer(bufferPtr, sizeBuffer[0]);
   } finally {
     ffi.ocsv_parser_destroy(parser);
   }

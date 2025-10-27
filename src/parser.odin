@@ -23,6 +23,7 @@ Parser :: struct {
     column_number: int,                    // Current column number (1-indexed, Phase 1)
     last_error:    Error_Info,             // Last error encountered (Phase 1 addition)
     error_count:   int,                    // Total number of errors (Phase 1 addition)
+    packed_buffer: []u8,                   // Phase 2: Binary packed buffer for FFI serialization
 }
 
 // parser_create creates a new parser with default configuration
@@ -94,6 +95,11 @@ parser_destroy :: proc(parser: ^Parser) {
             delete(field)
         }
         delete(parser.current_row)
+    }
+
+    // Phase 2: Free packed buffer (common to all platforms)
+    if len(parser.packed_buffer) > 0 {
+        delete(parser.packed_buffer)
     }
 
     free(parser)

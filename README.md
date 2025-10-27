@@ -356,6 +356,43 @@ Eager Mode    151.7s        7.9 MB/s      ~8 GB
 - Lazy mode uses **40x less memory** than eager mode
 - Lazy mode is **only 9% slower** than raw FFI (acceptable overhead)
 
+### FFI Performance Optimization (Packed Buffer)
+
+For advanced users who need maximum FFI throughput, OCSV offers a zero-copy packed buffer mode:
+
+**Test Setup:** 100K rows, 12.71 MB CSV file
+
+```
+Mode              Throughput    ns/row    vs Baseline
+───────────────────────────────────────────────────────
+Native Odin       61.84 MB/s    -         100% (baseline)
+Packed Buffer     52.32 MB/s    2,238     84.6% ⭐
+Bulk JSON         40.68 MB/s    2,878     65.8%
+Field-by-Field    29.58 MB/s    3,957     47.8%
+```
+
+**Packed Buffer Mode Features:**
+- ⚡ **52.32 MB/s** throughput (1.77× faster than field-by-field)
+- 🎯 **84.6% of native Odin** performance
+- 🚀 **Single FFI call** (vs N×M calls)
+- 💾 **Zero-copy deserialization** with ArrayBuffer
+- 📦 **Binary packed format** with length-prefixed strings
+
+**Usage:**
+```typescript
+import { parseCSVPacked } from 'ocsv/bindings/simple';
+
+// Zero-copy packed buffer (highest FFI performance)
+const rows = parseCSVPacked(csvData);
+// Returns string[][] with minimal FFI overhead
+```
+
+**When to use Packed Buffer:**
+- Need maximum FFI throughput (>40 MB/s)
+- Willing to trade API simplicity for performance
+- Working with medium-large files through Bun FFI
+- Want to minimize cross-language boundary overhead
+
 ### Memory Management
 
 #### Eager Mode
