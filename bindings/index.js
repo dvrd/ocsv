@@ -12,8 +12,111 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { existsSync } from "fs";
 import os from "os";
-import { OcsvError, ParseErrorCode } from "./errors.js";
-import { LazyRow, LazyResult } from "./lazy.js";
+
+/**
+ * Error codes from the parser
+ */
+export const ParseErrorCode = {
+	NONE: 0,
+	INVALID_INPUT: 1,
+	UNTERMINATED_QUOTE: 2,
+	INVALID_ESCAPE: 3,
+	ROW_TOO_LARGE: 4,
+	MEMORY_ERROR: 5,
+	IO_ERROR: 6,
+};
+
+/**
+ * Custom error class for OCSV parsing errors
+ */
+export class OcsvError extends Error {
+	constructor(message, code, line, column) {
+		super(message);
+		this.name = "OcsvError";
+		this.code = code;
+		this.line = line;
+		this.column = column;
+	}
+}
+
+/**
+ * Lazy row accessor - reads field data on demand
+ */
+export class LazyRow {
+	constructor(parser, rowIndex) {
+		this.parser = parser;
+		this.rowIndex = rowIndex;
+		this._fieldCount = null;
+	}
+
+	get fieldCount() {
+		if (this._fieldCount === null) {
+			this._fieldCount = lib.symbols.ocsv_get_field_count(this.parser, this.rowIndex);
+		}
+		return this._fieldCount;
+	}
+
+	getField(fieldIndex) {
+		if (fieldIndex < 0 || fieldIndex >= this.fieldCount) {
+			return null;
+		}
+		return lib.symbols.ocsv_get_field(this.parser, this.rowIndex, fieldIndex) || "";
+	}
+
+	toArray() {
+		const result = [];
+		for (let i = 0; i < this.fieldCount; i++) {
+			result.push(this.getField(i));
+		}
+		return result;
+	}
+
+	toObject(headers) {
+		const obj = {};
+		for (let i = 0; i < headers.length; i++) {
+			obj[headers[i]] = this.getField(i);
+		}
+		return obj;
+	}
+}
+
+/**
+ * Lazy result accessor - provides on-demand row access
+ */
+export class LazyResult {
+	constructor(parser, rowCount, headers, options) {
+		this.parser = parser;
+		this.rowCount = rowCount;
+		this.headers = headers;
+		this.options = options;
+		this._destroyed = false;
+	}
+
+	getRow(rowIndex) {
+		if (this._destroyed) {
+			throw new Error("LazyResult has been destroyed");
+		}
+		if (rowIndex < 0 || rowIndex >= this.rowCount) {
+			return null;
+		}
+		// Offset by 1 if we have headers
+		const actualRowIndex = this.headers ? rowIndex + 1 : rowIndex;
+		return new LazyRow(this.parser, actualRowIndex);
+	}
+
+	*[Symbol.iterator]() {
+		for (let i = 0; i < this.rowCount; i++) {
+			yield this.getRow(i);
+		}
+	}
+
+	destroy() {
+		if (!this._destroyed) {
+			lib.symbols.ocsv_parser_destroy(this.parser);
+			this._destroyed = true;
+		}
+	}
+}
 
 /**
  * Detect the current platform and architecture
@@ -473,12 +576,6 @@ export async function parseCSVFile(path, options = {}) {
 
 // Export for backwards compatibility
 export { Parser as OCSVParser };
-
-// Export error handling classes (Phase 1)
-export { OcsvError, ParseErrorCode };
-
-// Export lib for internal use by lazy.js
-export { lib };
 
 // Export advanced performance functions (Phase 2)
 export { parseCSVPacked, parseCSVBulk } from "./simple.ts";

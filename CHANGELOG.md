@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.1] - 2025-10-27
+
+### 🐛 Bug Fixes
+
+**Critical Fix: Missing Dependencies in npm Package**
+
+### Fixed
+- **Missing Files in npm Package**: Fixed imports of `errors.js` and `lazy.js` that didn't exist
+  - Implemented `OcsvError` class inline in `index.js`
+  - Implemented `ParseErrorCode` constants inline
+  - Implemented `LazyRow` and `LazyResult` classes inline
+  - Removed broken imports that caused module resolution failures
+- **Package Usability**: npm package now works correctly without missing module errors
+
+### Technical Details
+- All classes now defined in `bindings/index.js` (no external dependencies)
+- Maintains full backwards compatibility with existing exports
+- Zero breaking changes for existing users
+
+---
+
 ## [1.2.0] - 2025-10-27
 
 ### ⚡ Performance
@@ -282,6 +303,7 @@ ocsv/
 - [Issues](https://github.com/dvrd/ocsv/issues)
 - [NPM Package](https://www.npmjs.com/package/ocsv)
 
+[1.2.1]: https://github.com/dvrd/ocsv/releases/tag/v1.2.1
 [1.2.0]: https://github.com/dvrd/ocsv/releases/tag/v1.2.0
 [1.1.1]: https://github.com/dvrd/ocsv/releases/tag/v1.1.1
 [1.0.0]: https://github.com/dvrd/ocsv/releases/tag/v1.0.0
