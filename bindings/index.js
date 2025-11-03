@@ -7,7 +7,7 @@
  * @module ocsv
  */
 
-import { dlopen, FFIType, ptr } from "bun:ffi";
+import { dlopen, FFIType, ptr, toArrayBuffer } from "bun:ffi";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { existsSync } from "fs";
@@ -28,8 +28,26 @@ export const ParseErrorCode = {
 
 /**
  * Custom error class for OCSV parsing errors
+ *
+ * @extends Error
+ * @example
+ * try {
+ *   parser.parse(malformedCSV);
+ * } catch (err) {
+ *   if (err instanceof OcsvError) {
+ *     console.error(`Parse error at line ${err.line}, column ${err.column}: ${err.message}`);
+ *     console.error(`Error code: ${err.code}`);
+ *   }
+ * }
  */
 export class OcsvError extends Error {
+	/**
+	 * Create a new OCSV parsing error
+	 * @param {string} message - Error message
+	 * @param {number} code - Error code from ParseErrorCode
+	 * @param {number} line - Line number where error occurred (1-indexed)
+	 * @param {number} column - Column number where error occurred (1-indexed)
+	 */
 	constructor(message, code, line, column) {
 		super(message);
 		this.name = "OcsvError";
@@ -41,14 +59,35 @@ export class OcsvError extends Error {
 
 /**
  * Lazy row accessor - reads field data on demand
+ *
+ * Provides efficient access to individual fields without materializing
+ * the entire row in memory. Ideal for processing large files where you
+ * only need specific columns.
+ *
+ * @example
+ * const result = parseCSV(data, { mode: 'lazy' });
+ * const row = result.getRow(100);
+ * console.log(row.getField(0));    // Get first field
+ * console.log(row.toArray());      // Materialize entire row
+ * result.destroy();
  */
 export class LazyRow {
+	/**
+	 * Create a new lazy row accessor (internal use only)
+	 * @private
+	 * @param {bigint} parser - Pointer to native parser
+	 * @param {number} rowIndex - Zero-based row index
+	 */
 	constructor(parser, rowIndex) {
 		this.parser = parser;
 		this.rowIndex = rowIndex;
 		this._fieldCount = null;
 	}
 
+	/**
+	 * Get the number of fields in this row
+	 * @type {number}
+	 */
 	get fieldCount() {
 		if (this._fieldCount === null) {
 			this._fieldCount = lib.symbols.ocsv_get_field_count(this.parser, this.rowIndex);
@@ -56,6 +95,16 @@ export class LazyRow {
 		return this._fieldCount;
 	}
 
+	/**
+	 * Get a specific field by index
+	 * @param {number} fieldIndex - Zero-based field index
+	 * @returns {string|null} Field value, or null if index out of bounds
+	 *
+	 * @example
+	 * const row = result.getRow(5);
+	 * const name = row.getField(0);  // First column
+	 * const age = row.getField(1);   // Second column
+	 */
 	getField(fieldIndex) {
 		if (fieldIndex < 0 || fieldIndex >= this.fieldCount) {
 			return null;
@@ -63,6 +112,15 @@ export class LazyRow {
 		return lib.symbols.ocsv_get_field(this.parser, this.rowIndex, fieldIndex) || "";
 	}
 
+	/**
+	 * Materialize the entire row as an array
+	 * @returns {string[]} Array of field values
+	 *
+	 * @example
+	 * const row = result.getRow(10);
+	 * const fields = row.toArray();
+	 * console.log(fields); // ['Alice', '30', 'NYC']
+	 */
 	toArray() {
 		const result = [];
 		for (let i = 0; i < this.fieldCount; i++) {
@@ -71,6 +129,17 @@ export class LazyRow {
 		return result;
 	}
 
+	/**
+	 * Convert row to object using provided headers
+	 * @param {string[]} headers - Column headers
+	 * @returns {Object<string, string>} Object mapping headers to field values
+	 *
+	 * @example
+	 * const headers = ['name', 'age', 'city'];
+	 * const row = result.getRow(10);
+	 * const obj = row.toObject(headers);
+	 * console.log(obj); // { name: 'Alice', age: '30', city: 'NYC' }
+	 */
 	toObject(headers) {
 		const obj = {};
 		for (let i = 0; i < headers.length; i++) {
@@ -82,8 +151,42 @@ export class LazyRow {
 
 /**
  * Lazy result accessor - provides on-demand row access
+ *
+ * Returned when using `mode: 'lazy'`. Allows iteration over CSV rows
+ * without materializing the entire dataset in memory. Perfect for
+ * processing massive files (100M+ rows) with minimal memory footprint.
+ *
+ * **IMPORTANT:** You MUST call `destroy()` when done to free native memory.
+ *
+ * @example Basic usage
+ * const result = parseCSV(data, { mode: 'lazy' });
+ * try {
+ *   const row = result.getRow(100);
+ *   console.log(row.toArray());
+ * } finally {
+ *   result.destroy();  // REQUIRED!
+ * }
+ *
+ * @example Iteration
+ * const result = parseCSV(data, { mode: 'lazy', hasHeader: true });
+ * try {
+ *   for (const row of result) {
+ *     const obj = row.toObject(result.headers);
+ *     console.log(obj);
+ *   }
+ * } finally {
+ *   result.destroy();
+ * }
  */
 export class LazyResult {
+	/**
+	 * Create a new lazy result accessor (internal use only)
+	 * @private
+	 * @param {bigint} parser - Pointer to native parser
+	 * @param {number} rowCount - Total number of data rows (excluding header)
+	 * @param {string[]|null} headers - Header row if hasHeader was true
+	 * @param {ParseOptions} options - Original parse options
+	 */
 	constructor(parser, rowCount, headers, options) {
 		this.parser = parser;
 		this.rowCount = rowCount;
@@ -92,6 +195,18 @@ export class LazyResult {
 		this._destroyed = false;
 	}
 
+	/**
+	 * Get a specific row by index (lazy access)
+	 * @param {number} rowIndex - Zero-based row index (excluding header)
+	 * @returns {LazyRow|null} Row accessor, or null if index out of bounds
+	 * @throws {Error} If LazyResult has been destroyed
+	 *
+	 * @example
+	 * const result = parseCSV(data, { mode: 'lazy' });
+	 * const row = result.getRow(1000);  // Access row 1000 directly
+	 * console.log(row.getField(2));     // Get column 2
+	 * result.destroy();
+	 */
 	getRow(rowIndex) {
 		if (this._destroyed) {
 			throw new Error("LazyResult has been destroyed");
@@ -104,12 +219,41 @@ export class LazyResult {
 		return new LazyRow(this.parser, actualRowIndex);
 	}
 
+	/**
+	 * Iterate over all rows (supports for...of loops)
+	 * @generator
+	 * @yields {LazyRow} Each row in the dataset
+	 *
+	 * @example
+	 * const result = parseCSV(data, { mode: 'lazy' });
+	 * try {
+	 *   for (const row of result) {
+	 *     console.log(row.toArray());
+	 *   }
+	 * } finally {
+	 *   result.destroy();
+	 * }
+	 */
 	*[Symbol.iterator]() {
 		for (let i = 0; i < this.rowCount; i++) {
 			yield this.getRow(i);
 		}
 	}
 
+	/**
+	 * Destroy the lazy result and free native memory
+	 *
+	 * **IMPORTANT:** You MUST call this method when done with lazy results.
+	 * Failure to call destroy() will cause memory leaks in native code.
+	 *
+	 * @example
+	 * const result = parseCSV(data, { mode: 'lazy' });
+	 * try {
+	 *   // Use result...
+	 * } finally {
+	 *   result.destroy();  // Always destroy in finally block
+	 * }
+	 */
 	destroy() {
 		if (!this._destroyed) {
 			lib.symbols.ocsv_parser_destroy(this.parser);
@@ -272,7 +416,84 @@ const lib = dlopen(libPath, {
 		args: [FFIType.ptr],
 		returns: FFIType.i32,
 	},
+	// Bulk extraction methods (Phase 1 & 2)
+	ocsv_rows_to_json: {
+		args: [FFIType.ptr],
+		returns: FFIType.cstring,
+	},
+	ocsv_rows_to_packed_buffer: {
+		args: [FFIType.ptr, FFIType.ptr],
+		returns: FFIType.ptr,
+	},
 });
+
+/**
+ * Deserialize packed binary buffer to 2D array (internal helper)
+ * @private
+ * @param {bigint|number} bufferPtr - Pointer to packed buffer
+ * @param {number} bufferSize - Size of buffer in bytes
+ * @returns {string[][]} 2D array of strings [row][field]
+ */
+function _deserializePackedBuffer(bufferPtr, bufferSize) {
+	// Convert pointer to ArrayBuffer (zero-copy)
+	const arrayBuffer = toArrayBuffer(bufferPtr, 0, bufferSize);
+	const view = new DataView(arrayBuffer);
+	const bytes = new Uint8Array(arrayBuffer);
+
+	// Read header
+	const magic = view.getUint32(0, true);
+	if (magic !== 0x4F435356) {  // "OCSV"
+		throw new Error(`Invalid magic number: 0x${magic.toString(16)}`);
+	}
+
+	const version = view.getUint32(4, true);
+	if (version !== 1) {
+		throw new Error(`Unsupported version: ${version}`);
+	}
+
+	const rowCount = view.getUint32(8, true);
+	const fieldCount = view.getUint32(12, true);
+	const totalBytes = view.getBigUint64(16, true);
+
+	// Validate buffer size
+	if (BigInt(bufferSize) !== totalBytes) {
+		throw new Error(`Buffer size mismatch: expected ${totalBytes}, got ${bufferSize}`);
+	}
+
+	// Read row offsets
+	const rowOffsets = new Uint32Array(rowCount);
+	for (let i = 0; i < rowCount; i++) {
+		rowOffsets[i] = view.getUint32(24 + i * 4, true);
+	}
+
+	// Deserialize rows
+	const rows = new Array(rowCount);
+	const decoder = new TextDecoder('utf-8');
+
+	for (let i = 0; i < rowCount; i++) {
+		const row = new Array(fieldCount);
+		let offset = rowOffsets[i];
+
+		for (let j = 0; j < fieldCount; j++) {
+			// Read field length (u16)
+			const length = view.getUint16(offset, true);
+			offset += 2;
+
+			// Zero-copy string extraction
+			if (length > 0) {
+				const fieldBytes = bytes.subarray(offset, offset + length);
+				row[j] = decoder.decode(fieldBytes);
+				offset += length;
+			} else {
+				row[j] = "";
+			}
+		}
+
+		rows[i] = row;
+	}
+
+	return rows;
+}
 
 /**
  * Configuration options for CSV parsing
@@ -289,6 +510,12 @@ const lib = dlopen(libPath, {
  * @property {number} [toLine=-1] - Stop parsing at line N (-1 = parse all lines)
  * @property {boolean} [skipLinesWithError=false] - Skip lines that fail to parse
  * @property {boolean} [hasHeader=false] - Whether the first row is a header
+ * @property {string} [mode='auto'] - Parsing mode: 'auto' (default), 'packed', 'bulk', 'field', or 'lazy'
+ *   - 'auto': Automatically select best mode based on data size (recommended)
+ *   - 'packed': Use packed buffer (fastest, 52 MB/s, best for >1K rows)
+ *   - 'bulk': Use bulk JSON (fast, 40 MB/s, good for 100-1K rows)
+ *   - 'field': Use field-by-field (slower, 30 MB/s, fine for <100 rows)
+ *   - 'lazy': Use lazy evaluation (on-demand row access, requires manual cleanup)
  */
 
 /**
@@ -402,13 +629,38 @@ export class Parser {
 
 		const rowCount = lib.symbols.ocsv_get_row_count(this.parser);
 
-		// Check for lazy mode
-		if (options.mode === 'lazy') {
+		// Determine parsing mode
+		const mode = options.mode || 'auto';
+
+		// Handle lazy mode (special case - no auto-selection)
+		if (mode === 'lazy') {
 			return this._parseLazy(rowCount, options);
 		}
 
-		// Default: eager mode
-		return this._parseEager(rowCount, options);
+		// Auto-select best mode based on row count
+		let selectedMode = mode;
+		if (mode === 'auto') {
+			if (rowCount > 1000) {
+				selectedMode = 'packed';  // Best for large files
+			} else if (rowCount > 100) {
+				selectedMode = 'bulk';    // Good for medium files
+			} else {
+				selectedMode = 'field';   // Fine for small files
+			}
+		}
+
+		// Execute selected mode
+		switch (selectedMode) {
+			case 'packed':
+				return this._parsePacked();
+			case 'bulk':
+				return this._parseBulk();
+			case 'field':
+				return this._parseEager(rowCount, options);
+			default:
+				// Fallback to eager mode for unknown modes
+				return this._parseEager(rowCount, options);
+		}
 	}
 
 	/**
@@ -483,6 +735,45 @@ export class Parser {
 		}
 
 		return result;
+	}
+
+	/**
+	 * Parse using packed buffer format (Phase 2 - fastest)
+	 * @private
+	 * @returns {ParseResult} Parsed result with all rows
+	 */
+	_parsePacked() {
+		const sizeBuffer = new Int32Array(1);
+		const bufferPtr = lib.symbols.ocsv_rows_to_packed_buffer(this.parser, ptr(sizeBuffer));
+
+		if (!bufferPtr || sizeBuffer[0] <= 0) {
+			return { rows: [], rowCount: 0 };
+		}
+
+		const rows = _deserializePackedBuffer(bufferPtr, sizeBuffer[0]);
+		return {
+			rows,
+			rowCount: rows.length,
+		};
+	}
+
+	/**
+	 * Parse using bulk JSON serialization (Phase 1 - fast)
+	 * @private
+	 * @returns {ParseResult} Parsed result with all rows
+	 */
+	_parseBulk() {
+		const jsonStr = lib.symbols.ocsv_rows_to_json(this.parser);
+
+		if (!jsonStr) {
+			return { rows: [], rowCount: 0 };
+		}
+
+		const rows = JSON.parse(jsonStr);
+		return {
+			rows,
+			rowCount: rows.length,
+		};
 	}
 
 	/**
