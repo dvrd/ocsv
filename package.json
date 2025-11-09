@@ -1,6 +1,6 @@
 {
   "name": "ocsv",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "description": "High-performance RFC 4180 compliant CSV parser with lazy mode for Bun. Parse 10M rows in 5s with minimal memory.",
   "main": "bindings/index.js",
   "types": "bindings/index.d.ts",
