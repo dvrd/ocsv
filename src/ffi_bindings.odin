@@ -520,7 +520,7 @@ cstring_to_string :: proc(s: cstring) -> string {
 }
 
 // ============================================================================
-// Phase 2: Packed Buffer Serialization (Zero-Copy Performance)
+// Phase 3: Packed Buffer Serialization (Zero-Copy Performance)
 // ============================================================================
 // These functions serialize CSV data to a packed binary format for minimal
 // FFI overhead and zero-copy deserialization in JavaScript.

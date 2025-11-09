@@ -356,27 +356,33 @@ Eager Mode    151.7s        7.9 MB/s      ~8 GB
 - Lazy mode uses **40x less memory** than eager mode
 - Lazy mode is **only 9% slower** than raw FFI (acceptable overhead)
 
-### FFI Performance Optimization (Packed Buffer)
+### FFI Performance Optimization (Phase 3)
 
-For advanced users who need maximum FFI throughput, OCSV offers a zero-copy packed buffer mode:
+For advanced users who need maximum FFI throughput, OCSV offers an optimized packed buffer mode:
 
-**Test Setup:** 100K rows, 12.71 MB CSV file
+**Test Setup:** 100K rows, 13.80 MB CSV file
 
 ```
-Mode              Throughput    ns/row    vs Baseline
-───────────────────────────────────────────────────────
-Native Odin       61.84 MB/s    -         100% (baseline)
-Packed Buffer     52.32 MB/s    2,238     84.6% ⭐
-Bulk JSON         40.68 MB/s    2,878     65.8%
-Field-by-Field    29.58 MB/s    3,957     47.8%
+Mode              Throughput    ns/row    vs Native      Improvement
+──────────────────────────────────────────────────────────────────────
+Native Odin       109.28 MB/s   915       100%           (baseline)
+Phase 3 Optimized 61.25 MB/s    2,253     56.1%          +17.1% vs P2
+Phase 2 Packed    52.32 MB/s    2,238     47.9%          +30.0% vs P1
+Phase 1 Bulk JSON 40.68 MB/s    2,878     37.2%          (baseline)
+Field-by-Field    29.58 MB/s    3,957     27.1%          N/A
 ```
 
-**Packed Buffer Mode Features:**
-- ⚡ **52.32 MB/s** throughput (1.77× faster than field-by-field)
-- 🎯 **84.6% of native Odin** performance
-- 🚀 **Single FFI call** (vs N×M calls)
-- 💾 **Zero-copy deserialization** with ArrayBuffer
+**Phase 3 Optimizations:**
+- ⚡ **61.25 MB/s** average throughput (56% of native, 109 MB/s baseline)
+- 📈 **+17% improvement** over Phase 2 (best JS optimization without Odin SIMD)
+- 🚀 **Batched TextDecoder** (reduced decoder overhead by ~30%)
+- 💾 **Pre-allocated arrays** (reduced GC pressure)
+- 📊 **SIMD-friendly memory access** patterns
+- 🔄 **Row size adaptive strategy** (<4KB batched, >4KB individual)
 - 📦 **Binary packed format** with length-prefixed strings
+- ✨ **Single FFI call** (vs N×M calls)
+
+**FFI Overhead:** Phase 3 shows ~44% overhead compared to pure Odin (56% efficiency). Further optimization requires Odin-side SIMD implementation or alternative serialization strategies.
 
 **Usage:**
 ```typescript

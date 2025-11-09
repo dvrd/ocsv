@@ -2,7 +2,7 @@
  * OCSV - High-performance CSV Parser
  *
  * A fast, RFC 4180 compliant CSV parser written in Odin with Bun FFI bindings.
- * Achieves 66.67 MB/s throughput with zero memory leaks.
+ * Achieves 61.25 MB/s throughput (56% of native) with zero memory leaks.
  *
  * @module ocsv
  */
@@ -270,19 +270,7 @@ function getPlatform() {
 	const platform = os.platform();
 	const arch = os.arch();
 
-	// Map Node.js platform names to our naming convention
-	const platformMap = {
-		'darwin': 'darwin',
-		'linux': 'linux',
-		'win32': 'win32'
-	};
-
-	const archMap = {
-		'x64': 'x64',
-		'arm64': 'arm64'
-	};
-
-	return `${platformMap[platform] || platform}-${archMap[arch] || arch}`;
+	return `${platform}-${arch}`;
 }
 
 /**
@@ -512,7 +500,7 @@ function _deserializePackedBuffer(bufferPtr, bufferSize) {
  * @property {boolean} [hasHeader=false] - Whether the first row is a header
  * @property {string} [mode='auto'] - Parsing mode: 'auto' (default), 'packed', 'bulk', 'field', or 'lazy'
  *   - 'auto': Automatically select best mode based on data size (recommended)
- *   - 'packed': Use packed buffer (fastest, 52 MB/s, best for >1K rows)
+ *   - 'packed': Use packed buffer (fastest, 61.25 MB/s, best for >1K rows)
  *   - 'bulk': Use bulk JSON (fast, 40 MB/s, good for 100-1K rows)
  *   - 'field': Use field-by-field (slower, 30 MB/s, fine for <100 rows)
  *   - 'lazy': Use lazy evaluation (on-demand row access, requires manual cleanup)

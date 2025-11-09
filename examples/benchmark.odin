@@ -247,20 +247,25 @@ main :: proc() {
 	// ========================================================================
 	// Baseline comparison
 	// ========================================================================
-	baseline :: 61.84 // MB/s baseline from project stats
+	// NOTE: Baseline is measured on 100K rows × 12 fields (13.80 MB)
+	// Actual value varies by CPU, but ~109 MB/s on Apple M1/M2
+	baseline :: 109.28 // MB/s - native Odin on 13.80MB test file
 	vs_baseline := (parse_throughput / baseline) * 100.0
 
 	fmt.printf("\n%s🎯 Performance Rating%s\n", BOLD, RESET)
 	print_separator('─')
 	fmt.printf("   Throughput: %.2f MB/s\n", parse_throughput)
 	fmt.printf("   vs Baseline: %.1f%%\n", vs_baseline)
+	fmt.printf("   Baseline: %.2f MB/s (100K rows, 13.80 MB)\n", baseline)
 
 	if parse_throughput >= baseline {
-		fmt.printf("   Status: %s✅ EXCELLENT%s (above baseline)\n", GREEN, RESET)
+		fmt.printf("   Status: %s✅ EXCELLENT%s (at or above baseline)\n", GREEN, RESET)
 	} else if parse_throughput >= baseline * 0.8 {
 		fmt.printf("   Status: %s✅ GOOD%s (within 20%% of baseline)\n", GREEN, RESET)
+	} else if parse_throughput >= baseline * 0.5 {
+		fmt.printf("   Status: %s⚠️  ACCEPTABLE%s (50-80%% of baseline)\n", YELLOW, RESET)
 	} else {
-		fmt.printf("   Status: %s⚠️  NEEDS IMPROVEMENT%s\n", YELLOW, RESET)
+		fmt.printf("   Status: %s❌ NEEDS IMPROVEMENT%s (<50%% of baseline)\n", RED, RESET)
 	}
 
 	// ========================================================================
