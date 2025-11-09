@@ -356,39 +356,35 @@ Eager Mode    151.7s        7.9 MB/s      ~8 GB
 - Lazy mode uses **40x less memory** than eager mode
 - Lazy mode is **only 9% slower** than raw FFI (acceptable overhead)
 
-### FFI Performance Optimization (Phase 3)
+### Advanced: High-Performance FFI Mode
 
-For advanced users who need maximum FFI throughput, OCSV offers an optimized packed buffer mode:
+For advanced users who need maximum FFI throughput, OCSV offers an optimized packed buffer mode that achieves **61.25 MB/s** (56% of native Odin performance).
 
-**Test Setup:** 100K rows, 13.80 MB CSV file
+**Performance Comparison (100K rows, 13.80 MB file):**
 
 ```
-Mode              Throughput    ns/row    vs Native      Improvement
-──────────────────────────────────────────────────────────────────────
-Native Odin       109.28 MB/s   915       100%           (baseline)
-Phase 3 Optimized 61.25 MB/s    2,253     56.1%          +17.1% vs P2
-Phase 2 Packed    52.32 MB/s    2,238     47.9%          +30.0% vs P1
-Phase 1 Bulk JSON 40.68 MB/s    2,878     37.2%          (baseline)
-Field-by-Field    29.58 MB/s    3,957     27.1%          N/A
+Mode              Throughput    ns/row    vs Native
+──────────────────────────────────────────────────────
+Native Odin       109.28 MB/s   915       100%
+Packed Buffer     61.25 MB/s    2,253     56%
+Bulk JSON         40.68 MB/s    2,878     37%
+Field-by-Field    29.58 MB/s    3,957     27%
 ```
 
-**Phase 3 Optimizations:**
-- ⚡ **61.25 MB/s** average throughput (56% of native, 109 MB/s baseline)
-- 📈 **+17% improvement** over Phase 2 (best JS optimization without Odin SIMD)
-- 🚀 **Batched TextDecoder** (reduced decoder overhead by ~30%)
-- 💾 **Pre-allocated arrays** (reduced GC pressure)
+**Optimizations:**
+- ⚡ **61.25 MB/s** average throughput
+- 🚀 **Batched TextDecoder** with reduced decoder overhead
+- 💾 **Pre-allocated arrays** to reduce GC pressure
 - 📊 **SIMD-friendly memory access** patterns
-- 🔄 **Row size adaptive strategy** (<4KB batched, >4KB individual)
+- 🔄 **Adaptive processing** for different row sizes
 - 📦 **Binary packed format** with length-prefixed strings
-- ✨ **Single FFI call** (vs N×M calls)
-
-**FFI Overhead:** Phase 3 shows ~44% overhead compared to pure Odin (56% efficiency). Further optimization requires Odin-side SIMD implementation or alternative serialization strategies.
+- ✨ **Single FFI call** instead of multiple round-trips
 
 **Usage:**
 ```typescript
 import { parseCSVPacked } from 'ocsv/bindings/simple';
 
-// Zero-copy packed buffer (highest FFI performance)
+// Optimized packed buffer mode (highest FFI performance)
 const rows = parseCSVPacked(csvData);
 // Returns string[][] with minimal FFI overhead
 ```
@@ -398,6 +394,8 @@ const rows = parseCSVPacked(csvData);
 - Willing to trade API simplicity for performance
 - Working with medium-large files through Bun FFI
 - Want to minimize cross-language boundary overhead
+
+**Note:** The 44% overhead compared to native Odin is inherent to the FFI serialization boundary. This is the practical limit for JavaScript-based FFI approaches.
 
 ### Memory Management
 
@@ -674,6 +672,6 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 **Built with ❤️ using Odin + Bun**
 
-**Version:** 1.0.0
+**Version:** 1.3.0
 
-**Last Updated:** 2025-10-16
+**Last Updated:** 2025-11-09
