@@ -79,3 +79,4 @@ PRPs/
 # Documentation backups
 docs.backup-*/
 large_data.csv
+benchmark
